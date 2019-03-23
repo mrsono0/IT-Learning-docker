@@ -1,0 +1,97 @@
+FROM mrsono0/base_project:miniconda_alpine
+
+########################################################################
+# Set up OS
+########################################################################
+USER root
+EXPOSE 80 443
+WORKDIR /root
+
+ENV CPPFLAGS=-s \
+    SHELL=/bin/bash
+
+# CMD start_jupyter.sh ${notebook_dir}
+CMD /usr/local/bin/start_jupyter.sh ${notebook_dir} --port=8888 --no-browser --allow-root --ip=0.0.0.0 --NotebookApp.token=
+
+
+COPY alpine/util_jupyter/* /usr/local/bin/
+COPY alpine/config_jupyter/bashrc /root/.bashrc
+# COPY alpine/patches_jupyter /root/.patches
+# COPY alpine/config_jupyter/repositories /etc/apk/repositories
+COPY alpine/config_jupyter/*.rsa.pub /etc/apk/keys/
+COPY alpine/start_jupyter.sh /usr/local/bin/
+COPY alpine/config_jupyter/jupyter /root/.jupyter/
+COPY alpine/config_jupyter/ipydeps /root/.config/ipydeps/
+
+RUN echo "http://dl-3.alpinelinux.org/alpine/v3.8/main" > /etc/apk/repositories && \
+    echo "http://dl-3.alpinelinux.org/alpine/v3.8/community" >> /etc/apk/repositories && \
+    echo "http://dl-3.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories
+RUN apk update && \
+    apk upgrade
+
+RUN \
+    min-apk binutils && \
+    min-apk \
+    ca-certificates \
+    file \
+    gcc \
+    g++ \
+    git \
+    libressl \
+    libsodium-dev \
+    make \
+    openssh-client \
+    patch \
+    readline-dev \
+    tar \
+    tini
+
+RUN echo "### Install specific version of zeromq from source" && \
+    min-package https://archive.org/download/zeromq_4.1.5/zeromq-4.1.5.tar.gz && \
+    ln -s /usr/local/lib/libzmq.so.3 /usr/local/lib/libzmq.so.4 && \
+    strip --strip-unneeded --strip-debug /usr/local/bin/curve_keygen && \
+    echo "### Alpine compatibility patch for various packages" && \
+    if [ ! -f /usr/include/xlocale.h ]; then echo '#include <locale.h>' > /usr/include/xlocale.h; fi && \
+    echo "### Cleanup unneeded files" && \
+    clean-terminfo
+
+RUN pip3 install -U -v notebook jupyter ipywidgets jupyter_dashboards pypki2 ipydeps ordo jupyterlab
+RUN pip3 install jupyter_nbgallery -U && \
+    echo "### Install jupyter extensions" && \
+    jupyter serverextension enable --py jupyterlab && \
+    jupyter nbextension enable --py --sys-prefix widgetsnbextension && \
+    jupyter serverextension enable --py jupyter_nbgallery && \
+    jupyter nbextension install --py jupyter_nbgallery && \
+    jupyter nbextension enable jupyter_nbgallery --py && \
+    jupyter dashboards quick-setup --sys-prefix && \
+    jupyter nbextension install --py ordo && \
+    jupyter nbextension enable ordo --py 
+    # sed -i 's/_max_upload_size_mb = [0-9][0-9]/_max_upload_size_mb = 50/g' \
+    #   /usr/lib/python3*/site-packages/notebook/static/tree/js/notebooklist.js \
+    #   /usr/lib/python3*/site-packages/notebook/static/tree/js/main.min.js \
+    #   /usr/lib/python3*/site-packages/notebook/static/tree/js/main.min.js.map 
+
+########################################################################
+# Add dynamic kernels
+########################################################################
+
+ADD alpine/kernels_jupyter /usr/share/jupyter/kernels/
+RUN rm -rf /usr/share/jupyter/kernels/python2
+ENV SPARK_HOME=/usr/spark
+ENV GOPATH=/go 
+# ENV PATH $SPARK_HOME/bin:$GOPATH/bin:/usr/share/jupyter/kernels/installers:$PATH
+ENV PATH /usr/share/jupyter/kernels/installers:$PATH
+ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$JAVA_HOME/jre/lib/amd64/server
+RUN echo "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$JAVA_HOME/jre/lib/amd64/server" >> /etc/profile
+RUN echo "export PATH=${SPARK_HOME}/bin:${GOPATH}/bin:$PATH" >> /etc/profile
+
+########################################################################
+# Add simple kernels (no extra apks)
+########################################################################
+
+RUN \
+    min-pip3 bash_kernel jupyter_c_kernel==1.0.0 && \
+    python3 -m bash_kernel.install
+    # clean-pyc-files /usr/lib/python3*
+COPY alpine/config_jupyter/repositories /etc/apk/repositories
+RUN apk update

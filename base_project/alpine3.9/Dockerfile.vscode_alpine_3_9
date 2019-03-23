@@ -1,0 +1,10 @@
+FROM mrsono0/base_project:base_dev_alpine_3_9
+
+RUN echo "http://dl-3.alpinelinux.org/alpine/v3.9/main" > /etc/apk/repositories && \
+    echo "http://dl-3.alpinelinux.org/alpine/v3.9/community" >> /etc/apk/repositories && \
+    echo "http://dl-3.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories && \
+    echo "http://apk.nbgallery.s3-us-west-2.amazonaws.com/alpine38" >> /etc/apk/repositories
+
+RUN apk update && \
+    apk upgrade
+RUN apk --update add xterm

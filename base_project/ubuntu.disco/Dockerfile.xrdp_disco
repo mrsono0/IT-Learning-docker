@@ -1,0 +1,83 @@
+FROM mrsono0/base_project:base_dev_disco
+
+ENV DEBIAN_FRONTEND noninteractive
+RUN sed -i "s/archive.ubuntu.com/mirror.kakao.com/g" /etc/apt/sources.list
+# RUN sed -i "s/archive.canonical.com/mirror.kakao.com/g" /etc/apt/sources.list
+RUN sed -i "s/security.ubuntu.com/mirror.kakao.com/g" /etc/apt/sources.list
+RUN sed -i "s/# deb-src/deb-src/g" /etc/apt/sources.list
+RUN apt-get -y update && apt-get -y upgrade
+
+RUN apt-get install -yqq \
+    xrdp \
+    xorgxrdp \
+    tightvncserver \
+    gconf-service \
+    libnspr4 \
+    libnss3 \
+    fonts-liberation \
+    libappindicator1 \
+    libcurl4 \
+    fonts-wqy-microhei \
+    firefox \
+    mc \
+    xterm \
+    epiphany-browser
+
+RUN cd /root && \
+    apt-get install -yqq \
+    mate-core \
+    mate-desktop-environment \
+    mate-notification-daemon \
+    mate-desktop-environment-core \
+    mate-themes \
+    mate-accessibility-profiles \
+    mate-applet-appmenu \
+    mate-applet-brisk-menu \
+    mate-applets \
+    mate-applets-common \
+    mate-calc \
+    mate-calc-common \
+    mate-dock-applet \
+    mate-hud \
+    mate-indicator-applet \
+    mate-indicator-applet-common \
+    mate-menu \
+    mate-notification-daemon \
+    mate-notification-daemon-common \
+    mate-utils \
+    mate-utils-common \
+    mate-window-applets-common \
+    mate-window-buttons-applet \
+    mate-window-menu-applet \
+    mate-window-title-applet \
+    ubuntu-mate-icon-themes \
+    ubuntu-mate-themes && \
+    # tightvncserver && \
+    apt-get autoclean && \
+    apt-get autoremove && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN echo "mate-session" > /etc/skel/.xsession && \
+    sed -i '/TerminalServerUsers/d' /etc/xrdp/sesman.ini  && \
+    sed -i '/TerminalServerAdmins/d' /etc/xrdp/sesman.ini  && \
+    sed -i -e '/DisconnectedTimeLimit=/ s/=.*/=300/' /etc/xrdp/sesman.ini && \
+    sed -i -e '/IdleTimeLimit=/ s/=.*/=300/' /etc/xrdp/sesman.ini && \
+    xrdp-keygen xrdp auto  && \
+    mkdir -p /var/run/xrdp && \
+    chmod 2775 /var/run/xrdp  && \
+    mkdir -p /var/run/xrdp/sockdir && \
+    chmod 3777 /var/run/xrdp/sockdir && \
+    echo "[program:xrdp]" >> /etc/supervisor/conf.d/xrdp.conf && \
+    echo "command=/usr/local/sbin/xrdp -nodaemon" >> /etc/supervisor/conf.d/xrdp.conf && \
+    echo "process_name = xrdp" >> /etc/supervisor/conf.d/xrdp.conf && \
+    echo "[program:xrdp-sesman]" >> /etc/supervisor/conf.d/xrdp.conf && \
+    echo "command=/usr/local/sbin/xrdp-sesman --nodaemon" >> /etc/supervisor/conf.d/xrdp.conf && \
+    echo "process_name = xrdp-sesman" >> /etc/supervisor/conf.d/xrdp.conf && \
+    chmod +x /etc/supervisor/conf.d/xrdp.conf
+
+
+# ADD ubuntu/etc/xrdp/xrdp.ini /etc/xrdp/xrdp.ini
+
+# Docker config
+EXPOSE 3389 3350 9001
+CMD ["/bin/bash"]

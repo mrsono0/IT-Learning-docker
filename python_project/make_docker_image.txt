@@ -1,0 +1,82 @@
+```
+https://sourceforge.net/projects/vcxsrv/
+
+https://sourceforge.net/projects/xming/
+xming :0 -ac -clipboard -multiwindow
+```
+```
+docker build -f Dockerfile.alpine_base --tag mrsono0/python_project:alpine_base .
+docker run --rm -it -p 2222:22 mrsono0/python_project:alpine_base
+docker tag python_project:alpine_base mrsono0/python_project:alpine_base
+docker push mrsono0/python_project:alpine_base
+```
+```
+docker build -f Dockerfile.workspace --tag mrsono0/python_project:workspace .
+docker create -v /workspace  mrsono0/python_project:workspace
+docker run --rm --name workspace -itd -v /workspace -P mrsono0/python_project:workspace
+docker tag python_project:workspace mrsono0/python_project:workspace
+docker push mrsono0/python_project:workspace
+```
+```
+docker build -f Dockerfile.alpine_anaconda3 --tag mrsono0/python_project:alpine_anaconda3 .
+docker run --rm -it -p 8888:8888 -p 2222:22 -e notebook_dir="--notebook-dir=/root" mrsono0/python_project:alpine_anaconda3
+docker tag python_project:alpine_anaconda3 mrsono0/python_project:alpine_anaconda3
+docker push mrsono0/python_project:alpine_anaconda3
+```
+```
+docker build -f Dockerfile.ubuntu_base --tag mrsono0/python_project:ubuntu_base .
+docker run --rm -it -p 2222:22 mrsono0/python_project:ubuntu_base
+docker tag python_project:ubuntu_base mrsono0/python_project:ubuntu_base
+docker push mrsono0/python_project:ubuntu_base
+```
+```
+docker build -f Dockerfile.python --tag mrsono0/python_project:python .
+docker run --rm -it -p 2222:22 mrsono0/python_project:python
+docker tag python_project:python mrsono0/python_project:python
+docker push mrsono0/python_project:python
+```
+```
+docker build -f Dockerfile.java --tag mrsono0/python_project:java .
+docker run --rm -it -p 2222:22 mrsono0/python_project:java
+docker tag python_project:java mrsono0/python_project:java
+docker push mrsono0/python_project:java
+```
+```
+docker build -f Dockerfile.ide --tag mrsono0/python_project:ide .
+docker run --rm -itd -e DISPLAY=172.18.48.1:0 -p 33890:3389 -p 2222:22 mrsono0/python_project:ide
+docker tag python_project:ide mrsono0/python_project:ide
+docker push mrsono0/python_project:ide
+```
+```
+docker build -f Dockerfile.pyspark --tag mrsono0/python_project:pyspark .
+docker run --rm -itd -p 8888:8888 -e JUPYTER_ENABLE_LAB=yes -e notebook_dir="--notebook-dir=/root"  mrsono0/python_project:pyspark
+docker tag python_project:pyspark mrsono0/python_project:pyspark
+docker push mrsono0/python_project:pyspark
+```
+```
+docker build -f Dockerfile.web --tag mrsono0/python_project:web .
+docker run --rm -itd -p 80:80 -e FLASK_APP=main/main.py -e FLASK_DEBUG=1 mrsono0/python_project:web flask run --host=0.0.0.0 --port=80
+docker tag python_project:web mrsono0/python_project:web
+docker push mrsono0/python_project:web
+```
+```
+docker build -f Dockerfile.mariadb --tag mrsono0/python_project:mariadb .
+docker run --rm -itd -e MYSQL_ROOT_PASSWORD=mariadb --link some-mariadb:mysql -p 3306:3306 mrsono0/python_project:mariadb
+docker tag python_project:mariadb mrsono0/python_project:mariadb
+docker push mrsono0/python_project:mariadb
+```
+```
+docker build -f Dockerfile.ora_xe_11g --tag mrsono0/python_project:ora_xe_11g .
+docker run --rm -itd -p 8080:8080 -p 1521:1521 -e ORACLE_ALLOW_REMOTE=true mrsono0/python_project:ora_xe_11g
+docker tag python_project:ora_xe_11g mrsono0/python_project:ora_xe_11g
+docker push mrsono0/python_project:ora_xe_11g
+```
+```
+docker build -f Dockerfile.ide_anaconda3 --tag mrsono0/python_project:ide_anaconda3 .
+docker run --rm -itd -p 33890:3389 -p 2222:22 mrsono0/python_project:ide_anaconda3
+docker run --rm --volumes-from=workspace -itd -e DISPLAY=172.18.48.1:0 -p 33890:3389 -p 2222:22 mrsono0/python_project:ide_anaconda3
+docker run --rm -it -e DISPLAY=172.27.160.1:0 -net="host" -p 33890:3389 -p 2222:22 mrsono0/python_project:ide_anaconda3
+docker run --rm -it -e DISPLAY=192.168.0.192:0 -p 33890:3389 -p 2222:22 --net=host mrsono0/python_project:ide_anaconda3
+docker tag python_project:ide_anaconda3 mrsono0/python_project:ide_anaconda3
+docker push mrsono0/python_project:ide_anaconda3
+```

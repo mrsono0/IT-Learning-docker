@@ -1,0 +1,112 @@
+FROM alpine:3.8
+
+# FROM alpine:edge
+
+ENV LC_ALL=ko_KR.UTF-8 \
+    LANG=ko_KR.UTF-8 \
+    TZ=Asia/Seoul \
+    WORK_DIR=/workdir
+ENV LANGUAGE=${LANG}
+
+RUN echo "http://dl-3.alpinelinux.org/alpine/v3.8/main" > /etc/apk/repositories && \
+    echo "http://dl-3.alpinelinux.org/alpine/v3.8/community" >> /etc/apk/repositories && \
+    echo "http://dl-3.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories
+RUN apk update && \
+    apk upgrade
+
+# timezone settings
+RUN apk --update add tzdata libx11
+RUN cp /usr/share/zoneinfo/${TZ} /etc/localtime && echo $TZ > /etc/timezone
+# # RUN apk del tzdata
+#     # pre installed package remove
+# # RUN rm -rf /tmp/* /var/cache/apk/*
+
+RUN apk --update add libuuid openssh util-linux dbus \
+    fontconfig ttf-freefont xauth xf86-input-keyboard sudo sed \
+    supervisor busybox net-tools bash tar gzip bzip2 unzip curl wget git
+    # && rm -rf /tmp/* /var/cache/apk/*
+
+# # Here we install GNU libc (aka glibc) and set C.UTF-8 locale as default.
+# ENV GLIBC_VERSION 2.28-r0
+# RUN apk add libstdc++ && \
+#     # for pkg in glibc-${GLIBC_VERSION} glibc-bin-${GLIBC_VERSION} glibc-i18n-${GLIBC_VERSION}; do curl -sSL ${GLIBC_REPO}/releases/download/${GLIBC_VERSION}/${pkg}.apk -o /tmp/${pkg}.apk; done && \
+#     # apk add --allow-untrusted /tmp/*.apk && \
+#     # rm -v /tmp/*.apk && \
+#     # ( /usr/glibc-compat/bin/localedef --force --inputfile POSIX --charmap UTF-8 ko_KR.UTF-8 || true ) && \
+#     echo "export LANG=ko_KR.UTF-8" > /etc/profile.d/locale.sh && \
+#     /usr/glibc-compat/sbin/ldconfig /lib /usr/glibc-compat/lib && \
+#     curl -Lo /etc/apk/keys/sgerrand.rsa.pub https://alpine-pkgs.sgerrand.com/sgerrand.rsa.pub && \
+#     curl -Lo glibc.apk "https://github.com/sgerrand/alpine-pkg-glibc/releases/download/${GLIBC_VERSION}/glibc-${GLIBC_VERSION}.apk" && \
+#     curl -Lo glibc-bin.apk "https://github.com/sgerrand/alpine-pkg-glibc/releases/download/${GLIBC_VERSION}/glibc-bin-${GLIBC_VERSION}.apk" && \
+#     apk add glibc-bin.apk glibc.apk && \
+#     /usr/glibc-compat/sbin/ldconfig /lib /usr/glibc-compat/lib && \
+#     echo 'hosts: files mdns4_minimal [NOTFOUND=return] dns mdns4' >> /etc/nsswitch.conf && \
+#     # apk del curl && \
+#     rm -rf glibc.apk glibc-bin.apk /etc/apk/keys/sgerrand.rsa.pub /tmp/* /var/cache/apk/*
+
+RUN ALPINE_GLIBC_BASE_URL="https://github.com/sgerrand/alpine-pkg-glibc/releases/download" && \
+    ALPINE_GLIBC_PACKAGE_VERSION="2.28-r0" && \
+    ALPINE_GLIBC_BASE_PACKAGE_FILENAME="glibc-$ALPINE_GLIBC_PACKAGE_VERSION.apk" && \
+    ALPINE_GLIBC_BIN_PACKAGE_FILENAME="glibc-bin-$ALPINE_GLIBC_PACKAGE_VERSION.apk" && \
+    ALPINE_GLIBC_I18N_PACKAGE_FILENAME="glibc-i18n-$ALPINE_GLIBC_PACKAGE_VERSION.apk" && \
+    # apk add --no-cache --virtual=.build-dependencies wget ca-certificates && \
+    apk add --no-cache wget ca-certificates && \
+    echo \
+        "-----BEGIN PUBLIC KEY-----\
+        MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApZ2u1KJKUu/fW4A25y9m\
+        y70AGEa/J3Wi5ibNVGNn1gT1r0VfgeWd0pUybS4UmcHdiNzxJPgoWQhV2SSW1JYu\
+        tOqKZF5QSN6X937PTUpNBjUvLtTQ1ve1fp39uf/lEXPpFpOPL88LKnDBgbh7wkCp\
+        m2KzLVGChf83MS0ShL6G9EQIAUxLm99VpgRjwqTQ/KfzGtpke1wqws4au0Ab4qPY\
+        KXvMLSPLUp7cfulWvhmZSegr5AdhNw5KNizPqCJT8ZrGvgHypXyiFvvAH5YRtSsc\
+        Zvo9GI2e2MaZyo9/lvb+LbLEJZKEQckqRj4P26gmASrZEPStwc+yqy1ShHLA0j6m\
+        1QIDAQAB\
+        -----END PUBLIC KEY-----" | sed 's/   */\n/g' > "/etc/apk/keys/sgerrand.rsa.pub" && \
+    wget \
+        "$ALPINE_GLIBC_BASE_URL/$ALPINE_GLIBC_PACKAGE_VERSION/$ALPINE_GLIBC_BASE_PACKAGE_FILENAME" \
+        "$ALPINE_GLIBC_BASE_URL/$ALPINE_GLIBC_PACKAGE_VERSION/$ALPINE_GLIBC_BIN_PACKAGE_FILENAME" \
+        "$ALPINE_GLIBC_BASE_URL/$ALPINE_GLIBC_PACKAGE_VERSION/$ALPINE_GLIBC_I18N_PACKAGE_FILENAME" && \
+    apk --update add --no-cache \
+        "$ALPINE_GLIBC_BASE_PACKAGE_FILENAME" \
+        "$ALPINE_GLIBC_BIN_PACKAGE_FILENAME" \
+        "$ALPINE_GLIBC_I18N_PACKAGE_FILENAME" && \
+    \
+    rm "/etc/apk/keys/sgerrand.rsa.pub" && \
+    /usr/glibc-compat/bin/localedef --force --inputfile POSIX --charmap UTF-8 "$LANG" || true && \
+    echo "export LANG=$LANG" > /etc/profile.d/locale.sh && \
+    \
+    # apk del glibc-i18n && \
+    # \
+    rm "/root/.wget-hsts" && \
+    # apk del .build-dependencies && \
+    rm \
+        "$ALPINE_GLIBC_BASE_PACKAGE_FILENAME" \
+        "$ALPINE_GLIBC_BIN_PACKAGE_FILENAME" \
+        "$ALPINE_GLIBC_I18N_PACKAGE_FILENAME" && \
+    rm -rf glibc.apk glibc-bin.apk /etc/apk/keys/sgerrand.rsa.pub /tmp/* /var/cache/apk/*
+
+RUN echo "export LC_ALL=ko_KR.UTF-8" >> /etc/profile
+RUN echo "export LANG=ko_KR.UTF-8" >> /etc/profile
+RUN echo "export LANGUAGE=ko_KR.UTF-8" >> /etc/profile
+
+RUN echo 'root:root' | /usr/sbin/chpasswd
+RUN addgroup ubuntu \
+    && adduser -G ubuntu -s /bin/bash -D ubuntu \
+    && echo "ubuntu:ubuntu" | /usr/sbin/chpasswd \
+    && echo "ALL ALL = (ALL) NOPASSWD: ALL" >>/etc/sudoers
+RUN addgroup alpine \
+    && adduser  -G alpine -s /bin/sh -D alpine \
+    && echo "alpine:alpine" | /usr/sbin/chpasswd \
+    && echo "alpine    ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+
+ADD alpine/entrypoint.sh /usr/local/bin
+RUN mkdir /etc/supervisor.d
+RUN echo "[supervisord]" >> /etc/supervisor.d/supervisord.ini
+RUN echo "nodaemon=true" >> /etc/supervisor.d/supervisord.ini
+RUN echo "[program:sshd]" >> /etc/supervisor.d/supervisord.ini
+RUN echo "command=/usr/sbin/sshd -D" >> /etc/supervisor.d/supervisord.ini
+# RUN echo "user=root" >> /etc/supervisor.d/supervisord.ini
+# RUN echo "autorestart=true" >> /etc/supervisor.d/supervisord.ini
+# RUN echo "priority=0" >> /etc/supervisor.d/supervisord.ini
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["/usr/bin/supervisord", "-n"]

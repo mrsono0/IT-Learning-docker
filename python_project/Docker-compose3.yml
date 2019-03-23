@@ -1,0 +1,54 @@
+version: "3" 
+services: 
+    unison: 
+    container_name: xxx_unison 
+    image: onnimonni/unison 
+    environment: 
+     - UNISON_DIR=/var/www/$DOCKER_WEB_DOMAIN/htdocs/ 
+     - UNISON_USER=www-data 
+     - UNISON_UID=1000 
+     - UNISON_GID=1001  
+    volumes: 
+     - unison_file:/var/www/$DOCKER_WEB_DOMAIN/htdocs/ 
+    networks: 
+     - frontend  
+    ports: 
+     - "5000:5000"  
+    database: 
+    container_name: xxx_database 
+    image: percona 
+    depends_on: 
+     - unison 
+    environment: 
+     - MYSQL_ROOT_PASSWORD=xxx 
+     - MYSQL_DATABASE=xxx # Assign a database to be created on container first load 
+    volumes: 
+     - ./mysql/import:/docker-entrypoint-initdb.d 
+     - ./mysql/data/:/var/lib/mysql/ 
+     - ./logs:/var/log/mysql 
+     - ./mysql/conf:/etc/mysql/conf.d   
+    ports: 
+     - "3306:3306" 
+    networks: 
+     - frontend 
+    web: 
+    container_name: xxx_web 
+    image: ubuntu 
+    depends_on: 
+     - unison  
+    volumes: 
+     - ./nginx/ssl/:/etc/nginx/ssl/ 
+     - ./logs/:/var/log/nginx 
+     - ./shell/run.sh:/run.sh 
+     - unison_file:/var/www/$DOCKER_WEB_DOMAIN/htdocs/ 
+    ports: 
+     - "80:80" 
+     - "443:443" 
+    networks: 
+     - frontend 
+    env_file: 
+     - ./.env  
+networks: 
+    frontend: 
+volumes: 
+    unison_file

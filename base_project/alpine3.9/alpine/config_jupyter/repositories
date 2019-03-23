@@ -1,0 +1,8 @@
+http://dl-cdn.alpinelinux.org/alpine/v3.9/main
+http://dl-cdn.alpinelinux.org/alpine/v3.9/community
+http://dl-3.alpinelinux.org/alpine/edge/testing
+http://apk.nbgallery.s3-us-west-2.amazonaws.com/alpine38
+
+# Uncomment to host apks locally
+#https://localhost/Jupyter/static/apks
+#http://localhost/Jupyter/static/apks

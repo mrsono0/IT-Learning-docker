@@ -1,0 +1,87 @@
+version: '3'
+services:
+  workspace:
+    image: mrsono0/base_project:alpine_base
+    hostname: workspace
+    container_name: workspace
+    ports:
+      - "2222:22"
+    volumes:
+      - /workspace
+    healthcheck:
+      interval: 5s
+      retries: 100
+  db:
+    image: mrsono0/base_project:mariadb
+     hostname: mariadb
+     container_name: mariadb
+    environment:
+      MYSQL_ROOT_PASSWORD: mariadb
+      MYSQL_DATABASE: mariadb
+      MYSQL_USER: mariadb
+      MYSQL_PASSWORD: mariadb
+
+  jupyterlab:
+    # build: ./jupyterlab
+    image: mrsono0/base_project:jupyter_alpine
+    hostname: jupyterlab
+    container_name: jupyterlab
+    ports:
+      - "8888:80"
+      - "2222:22"
+    volumes_from:
+      - workspace
+    # entrypoint: sh -c 'jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --notebook-dir=/opt/app/data --allow-root'
+    # command:
+    environment:
+      notebook_dir: "--notebook-dir=/workspace"
+      JUPYTER_ENABLE_LAB: "yes"
+    depends_on:
+      workspace:
+        condition: service_healthy
+
+  flask:
+    image: mrsono0/base_project:flask
+    hostname: flask
+    container_name: flask
+    volumes_from:
+      - workspace
+    ports:
+      - "80:80"
+    environment:
+      - FLASK_APP=app/main.py
+      - FLASK_DEBUG=1
+    #   - 'RUN=flask run --host=0.0.0.0 --port=80'
+    # command: flask run --host=0.0.0.0 --port=80
+    # Infinite loop, to keep it alive, for debugging
+    # command: bash -c "while true; do echo 'sleeping...' && sleep 10; done"
+
+  # redmine:
+  #   image: mrsono0/base_project:redmine
+  #    hostname: redmine
+  #    container_name: redmine
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     DB_ADAPTER: mysql2
+  #     DB_HOST: db
+  #     DB_PASSWORD: redmine
+  #     DB_USER: redmine
+  #     DB_NAME: redmine
+  #   depends_on:
+  #     - db
+
+# networks:
+#   collabnet:
+#     driver: "overlay"
+#     internal: true
+# volumes:
+#   workspace:
+# secrets:
+#   mysqlpasswd:
+#     external:
+#       name: "mysqlpasswd"
+# secrets:
+#   mysqlrootpaswd:
+#     external:
+#       name: "mysqlrootpasswd"

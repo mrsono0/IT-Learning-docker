@@ -1,0 +1,64 @@
+FROM mrsono0/base_project:alpine_base
+
+RUN echo "http://dl-3.alpinelinux.org/alpine/v3.8/main" > /etc/apk/repositories && \
+    echo "http://dl-3.alpinelinux.org/alpine/v3.8/community" >> /etc/apk/repositories && \
+    echo "http://dl-3.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories
+RUN apk update && \
+    apk upgrade
+
+ENV MINICONDA_HOME /opt/conda
+ENV PATH $MINICONDA_HOME/bin:$PATH
+RUN echo "export MINICONDA_HOME=/opt/conda" >> /etc/profile
+RUN echo "export PATH=${MINICONDA_HOME}/bin:$PATH" >> /etc/profile
+
+ENV JAVA_HOME /usr/lib/jvm/default-jvm
+ENV PATH $JAVA_HOME/bin:$PATH
+RUN echo "export JAVA_HOME=/usr/lib/jvm/default-jvm" >> /etc/profile
+RUN echo "export PATH=${JAVA_HOME}/bin:$PATH" >> /etc/profile
+
+# http://jdk.java.net/
+ENV JAVA_VERSION 13-ea+5
+ENV JAVA_URL https://download.java.net/java/early_access/alpine/5/binaries/openjdk-13-ea+5_linux-x64-musl_bin.tar.gz
+ENV JAVA_SHA256 277c4238ac2c7c8e1d331ff87f851fefe051c9503e3e030fbdaec40dbff89529
+
+RUN set -eux; \
+    \
+    wget -O /openjdk.tgz "$JAVA_URL"; \
+    echo "$JAVA_SHA256 */openjdk.tgz" | sha256sum -c -; \
+    mkdir -p /usr/lib/jvm/openjdk-13; \
+    tar --extract --file /openjdk.tgz --directory /usr/lib/jvm/openjdk-13 --strip-components 1; \
+    ln -sf /usr/lib/jvm/openjdk-13 /usr/lib/jvm/default-jvm; \
+    rm /openjdk.tgz; \
+    \
+# https://github.com/docker-library/openjdk/issues/212#issuecomment-420979840
+# http://openjdk.java.net/jeps/341
+    java -Xshare:dump; \
+    \
+# basic smoke test
+    java --version; \
+    javac --version
+
+RUN cd /usr/local/bin \
+    && ln -s /usr/lib/jvm/default-jvm/bin/java java \
+    && ln -s /usr/lib/jvm/default-jvm/bin/javac javac
+
+ENV MINICONDA_VER latest
+ENV MINICONDA Miniconda3-$MINICONDA_VER-Linux-x86_64.sh
+ENV MINICONDA_URL https://repo.continuum.io/miniconda/$MINICONDA
+# https://repo.continuum.io/miniconda/Miniconda3-4.5.4-Linux-x86_64.sh
+
+# Create nbuser user with UID=1000 and in the 'users' group
+RUN mkdir -p /opt/conda && \
+    curl -L $MINICONDA_URL -o miniconda.sh && \
+    /bin/bash miniconda.sh -f -b -p /opt/conda && \
+    rm miniconda.sh && \
+    /opt/conda/bin/conda install conda python=3.6.8 --yes && \
+    ln -s /opt/conda/bin/conda /usr/bin/conda && \
+    conda clean --yes --all && \
+    rm -rf /var/cache/apk/*
+
+RUN ln -fs /opt/conda/bin/pip /usr/bin/pip && \
+    ln -fs /opt/conda/bin/pip /usr/bin/pip3 && \
+    ln -fs /opt/conda/bin/python3.6 /usr/bin/python && \
+    ln -fs /opt/conda/bin/python3.6 /usr/bin/python3.6
+RUN pip install --no-cache-dir --upgrade setuptools pip

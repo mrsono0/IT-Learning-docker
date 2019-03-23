@@ -1,0 +1,32 @@
+FROM mrsono0/base_project:python_debian
+
+ENV DEBIAN_FRONTEND noninteractive
+RUN sed -i "s/deb.debian.org/ftp.kr.debian.org/g" /etc/apt/sources.list
+RUN sed -i "s/security.debian.org/ftp.kr.debian.org/g" /etc/apt/sources.list
+RUN apt-get -y update
+RUN apt-get -yy upgrade
+
+ENV JAVA_HOME=/usr/lib/jvm/default-jvm
+ENV PATH $JAVA_HOME/bin:/usr/local/bin:$PATH
+
+RUN mkdir -p /usr/lib/jvm
+RUN curl -Lo /usr/lib/jvm/openjdk-13.tar.gz https://download.java.net/java/early_access/jdk13/5/GPL/openjdk-13-ea+5_linux-x64_bin.tar.gz
+RUN curl -Lo /usr/lib/jvm/openjdk-8.tar.gz https://download.java.net/java/early_access/jdk8/b03/BCL/jdk-8u202-ea-bin-b03-linux-x64-07_nov_2018.tar.gz
+RUN cd /usr/lib/jvm
+WORKDIR /usr/lib/jvm
+RUN tar zxvf openjdk-13.tar.gz
+RUN tar zxvf openjdk-8.tar.gz
+RUN ln -sf /usr/lib/jvm/jdk-13 /usr/lib/jvm/default-jvm
+RUN rm -f ./openjdk-13.tar.gz ./openjdk-8.tar.gz
+RUN cd /
+WORKDIR /
+
+RUN echo "export JAVA_HOME=/usr/lib/jvm/default-jvm" >> /etc/profile
+RUN echo "export PATH=$JAVA_HOME/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" >> /etc/profile
+# RUN add-apt-repository ppa:openjdk-r/ppa
+# RUN apt-get update && apt-get install -y default-jdk
+# RUN apt-get update && apt-get install -y openjdk-8-jdk
+# RUN apt-get autoclean --yes && \
+#     apt-get clean --yes && \
+#     rm -rf /var/cache/apt /var/lib/apt/lists
+# RUN ln -sf "${JAVA_HOME}/bin/"* "/usr/bin/"

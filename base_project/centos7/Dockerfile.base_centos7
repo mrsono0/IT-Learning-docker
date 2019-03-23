@@ -1,0 +1,59 @@
+FROM centos:7
+
+ENV DEBIAN_FRONTEND noninteractive
+RUN yum -y install \
+    ca-certificates software-properties-common sudo apt-utils locales \
+    openssh openssh-server openssh-clients openssh-askpass openssl-libs \
+    vim nano wget curl git \
+    gpg netbase net-tools uuid-runtime \
+    libmagickcore-dev fonts-liberation fcitx fcitx-hangul \
+    fortune
+RUN yum install -y python-pip python-setuptools && \
+    easy_install supervisor
+
+# RUN wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
+#     sh Miniconda3-latest-Linux-x86_64.sh
+
+RUN cp -r /etc/ssh /ssh_orig && \
+    rm -rf /etc/ssh/*
+RUN ln -sf /usr/share/zoneinfo/Asia/Seoul /etc/localtime
+ENV ORACLE_HOME=/opt/oracle/product/18c/dbhomeXE
+ENV PATH=$ORACLE_HOME/bin:$PATH
+ENV ORACLE_SID=XE
+ENV ORACLE_DOCKER_INSTALL=true
+RUN echo 'export LANG="ko_KR.UTF-8"' >> /etc/profile && \
+    echo 'export LANGUAGE="ko_KR;ko;en_GB;en"' >> /etc/profile && \
+    echo 'export LC_ALL="ko_KR.UTF-8"' >> /etc/profile && \
+    echo 'export ORACLE_HOME=/opt/oracle/product/18c/dbhomeXE' >> /etc/profile && \
+    echo 'export PATH=$ORACLE_HOME/bin:$PATH' >> /etc/profile && \
+    echo 'export ORACLE_SID=XE' >> /etc/profile
+RUN echo 'LANG="ko_KR.UTF-8"' >> /etc/default/locale && \
+    echo 'LANGUAGE="ko_KR;ko;en_GB;en"' >> /etc/default/locale && \
+    echo 'LC_ALL="ko_KR.UTF-8"' >> /etc/default/locale
+
+ARG NB_USER="ubuntu"
+ARG NB_UID="1000"
+ARG NB_GID="1000"
+RUN groupadd --gid $NB_GID ubuntu && \
+    useradd -m -s /bin/bash -N -u $NB_UID $NB_USER && \
+    echo 'root:root' | chpasswd && \
+    echo 'ubuntu:ubuntu' | chpasswd && \
+    echo "ubuntu    ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers && \
+    chmod g+w /etc/passwd
+
+ADD centos/oracle-database-preinstall-18c-1.0-1.el7.x86_64.rpm /
+ADD centos/oracle-database-xe-18c-1.0-1.x86_64.rpm /
+RUN yum -y localinstall oracle-database-preinstall-18c-1.0-1.el7.x86_64.rpm
+RUN yum -y localinstall oracle-database-xe-18c-1.0-1.x86_64.rpm
+
+RUN rm oracle-database-preinstall-18c-1.0-1.el7.x86_64.rpm && \
+    rm oracle-database-xe-18c-1.0-1.x86_64.rpm
+RUN (echo "Qwer1324$"; echo "Qwer1324$";) | /etc/init.d/oracle-xe-18c configure
+
+ADD centos/etc/supervisor/conf.d/sshd.conf /etc/supervisor/conf.d/
+ADD centos/etc/supervisor/supervisord.conf /etc/supervisor/
+ADD centos/entrypoint.sh /usr/local/bin/
+ADD centos/startup.sh /usr/local/bin/
+EXPOSE 22 1521 5500 8080
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["startup.sh"]

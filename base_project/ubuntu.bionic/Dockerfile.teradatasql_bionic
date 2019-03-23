@@ -1,0 +1,253 @@
+FROM mrsono0/base_project:teradatasql as base
+
+ENV DEBIAN_FRONTEND noninteractive
+RUN sed -i "s/archive.ubuntu.com/mirror.kakao.com/g" /etc/apt/sources.list
+# RUN sed -i "s/archive.canonical.com/mirror.kakao.com/g" /etc/apt/sources.list
+RUN sed -i "s/security.ubuntu.com/mirror.kakao.com/g" /etc/apt/sources.list
+RUN sed -i "s/# deb-src/deb-src/g" /etc/apt/sources.list
+RUN apt-get -y update
+RUN apt-get -yy upgrade
+RUN apt-get -yy install \
+    ca-certificates software-properties-common sudo apt-utils locales \
+    openssh-server supervisor vim nano wget curl git \
+    gpg netbase net-tools uuid-runtime \
+    libmagickcore-dev fonts-liberation fcitx fcitx-hangul \
+    fortune
+RUN apt-get autoclean --yes && \
+    apt-get clean --yes && \
+    rm -rf /var/cache/apt /var/lib/apt/lists
+
+RUN cp -r /etc/ssh /ssh_orig && \
+    rm -rf /etc/ssh/*
+RUN ln -sf /usr/share/zoneinfo/Asia/Seoul /etc/localtime
+RUN locale-gen --purge
+RUN locale-gen ko_KR.UTF-8
+RUN dpkg-reconfigure locales
+RUN echo 'LANG="ko_KR.UTF-8"' >> /etc/environment && \
+    # echo 'LANG="ko_KR.EUC-KR"' >> /etc/environment && \
+    echo 'LANGUAGE="ko_KR;ko;en_GB;en"' >> /etc/environment && \
+    echo 'LC_ALL="ko_KR.UTF-8"' >> /etc/environment
+RUN echo 'export LANG="ko_KR.UTF-8"' >> /etc/profile && \
+    # echo 'export LANG="ko_KR.EUC-KR"' >> /etc/profile && \
+    echo 'export LANGUAGE="ko_KR;ko;en_GB;en"' >> /etc/profile && \
+    echo 'export LC_ALL="ko_KR.UTF-8"' >> /etc/profile && \
+    echo "export QT_XKB_CONFIG_ROOT=/usr/share/X11/locale" >> /etc/profile
+RUN echo 'LANG="ko_KR.UTF-8"' >> /etc/default/locale && \
+    # echo 'LANG="ko_KR.EUC-KR"' >> /etc/default/locale && \
+    echo 'LANGUAGE="ko_KR;ko;en_GB;en"' >> /etc/default/locale && \
+    echo 'LC_ALL="ko_KR.UTF-8"' >> /etc/default/locale
+
+# ARG NB_USER="ubuntu"
+# ARG NB_UID="1000"
+# ARG NB_GID="1000"
+# RUN groupadd wheel -g 11 && \
+# RUN groupadd --gid $NB_GID ubuntu && \
+# RUN useradd -m -s /bin/bash -N -u $NB_UID $NB_USER && \
+RUN useradd -m -s /bin/bash -N ubuntu && \
+    echo 'root:root' | chpasswd && \
+    echo 'ubuntu:ubuntu' | chpasswd && \
+    echo "ubuntu    ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers && \
+    chmod g+w /etc/passwd
+
+RUN apt-get purge && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+ADD ubuntu/etc/supervisor/conf.d/sshd.conf /etc/supervisor/conf.d/
+ADD ubuntu/entrypoint.sh /usr/local/bin
+
+EXPOSE 22
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["/bin/bash"]
+
+FROM base as base_dev
+
+ENV DEBIAN_FRONTEND noninteractive
+RUN sed -i "s/archive.ubuntu.com/mirror.kakao.com/g" /etc/apt/sources.list
+# RUN sed -i "s/archive.canonical.com/mirror.kakao.com/g" /etc/apt/sources.list
+RUN sed -i "s/security.ubuntu.com/mirror.kakao.com/g" /etc/apt/sources.list
+RUN sed -i "s/# deb-src/deb-src/g" /etc/apt/sources.list
+RUN apt-get -y update --fix-missing
+RUN apt-get -yy upgrade
+
+RUN apt-get install -y \
+    bzip2 \
+    unzip \
+    g++ \
+    gcc \
+    build-essential \
+    fontconfig \
+    ed \
+    less \
+    vim-tiny \
+    fonts-texgyre \
+    fonts-dejavu \
+    unixodbc \
+    unixodbc-dev \
+    r-cran-rodbc \
+    gfortran && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+ENV MINICONDA_HOME /opt/conda
+ENV MINICONDA_VERSION 4.5.12
+ENV PATH /opt/conda/bin:$PATH
+ENV PATH $MINICONDA_HOME/bin:$PATH
+RUN echo "export MINICONDA_HOME=${MINICONDA_HOME}" >> /etc/profile
+RUN echo "export PATH=${MINICONDA_HOME}/bin:$PATH" >> /etc/profile
+RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-$MINICONDA_VERSION-Linux-x86_64.sh -O ~/miniconda.sh && \
+    /bin/bash ~/miniconda.sh -b -p /opt/conda && \
+    rm ~/miniconda.sh && \
+    /opt/conda/bin/conda clean -tipsy && \
+    ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh && \
+    echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
+    echo "conda activate base" >> ~/.bashrc
+
+RUN pip install --no-cache-dir --upgrade setuptools pip
+RUN conda update -n base -c defaults conda -y
+
+ENV JAVA_HOME /usr/lib/jvm/default-jvm
+ENV PATH $JAVA_HOME/bin:$PATH
+RUN echo "export JAVA_HOME=${JAVA_HOME}" >> /etc/profile
+RUN echo "export PATH=${JAVA_HOME}/bin:$PATH" >> /etc/profile
+ENV JAVA_VERSION 11.0.2
+ENV JAVA_URL https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_linux-x64_bin.tar.gz
+ENV JAVA_SHA256 99be79935354f5c0df1ad293620ea36d13f48ec3ea870c838f20c504c9668b57
+ENV JAVA_INSTALL_PATH /usr/lib/jvm/openjdk-11
+RUN set -eux; \
+	\
+	curl -fL -o /openjdk.tgz "$JAVA_URL"; \
+	echo "$JAVA_SHA256 */openjdk.tgz" | sha256sum -c -; \
+	mkdir -p "$JAVA_INSTALL_PATH"; \
+	tar --extract --file /openjdk.tgz --directory "$JAVA_INSTALL_PATH" --strip-components 1; \
+	rm /openjdk.tgz; \
+	\
+	ln -sf "$JAVA_INSTALL_PATH" /usr/lib/jvm/default-jvm; \
+	ln -sf "$JAVA_INSTALL_PATH" /usr/lib/jvm/latest
+RUN cd /usr/local/bin \
+    && ln -s "${JAVA_HOME}"/bin/java java \
+    && ln -s "${JAVA_HOME}"/bin/javac javac
+
+# ENV NODE_VERSION 11.10.0
+# RUN ARCH= && dpkgArch="$(dpkg --print-architecture)" \
+#     && case "${dpkgArch##*-}" in \
+#     amd64) ARCH='x64';; \
+#     ppc64el) ARCH='ppc64le';; \
+#     s390x) ARCH='s390x';; \
+#     arm64) ARCH='arm64';; \
+#     armhf) ARCH='armv7l';; \
+#     i386) ARCH='x86';; \
+#     *) echo "unsupported architecture"; exit 1 ;; \
+#     esac \
+#     && set -ex \
+#     && curl -fsSLO --compressed "https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-linux-$ARCH.tar.xz" \
+#     && curl -fsSLO --compressed "https://nodejs.org/dist/v$NODE_VERSION/SHASUMS256.txt.asc" \
+#     && tar -xJf "node-v$NODE_VERSION-linux-$ARCH.tar.xz" -C /usr/local --strip-components=1 --no-same-owner \
+#     && rm -f "node-v$NODE_VERSION-linux-$ARCH.tar.xz" SHASUMS256.txt.asc SHASUMS256.txt \
+#     && ln -s /usr/local/bin/node /usr/local/bin/nodejs
+RUN npm cache clean -f && \
+    npm install -g n && \
+    n stable && \
+    n current && \
+    ln -sf /usr/local/n/versions/node/11.12.0/bin/node /usr/bin/node
+
+ENV YARN_VERSION 1.15.2
+RUN set -ex \
+    && curl -fsSLO --compressed "https://yarnpkg.com/downloads/$YARN_VERSION/yarn-v$YARN_VERSION.tar.gz" \
+    && curl -fsSLO --compressed "https://yarnpkg.com/downloads/$YARN_VERSION/yarn-v$YARN_VERSION.tar.gz.asc" \
+    && mkdir -p /opt \
+    && tar -xzf yarn-v$YARN_VERSION.tar.gz -C /opt/ \
+    && ln -s /opt/yarn-v$YARN_VERSION/bin/yarn /usr/local/bin/yarn \
+    && ln -s /opt/yarn-v$YARN_VERSION/bin/yarnpkg /usr/local/bin/yarnpkg \
+    && rm -f yarn-v$YARN_VERSION.tar.gz.asc yarn-v$YARN_VERSION.tar.gz
+# RUN yarn self-update
+RUN npm install -g npm
+
+ENV SCALA_HOME=/usr/share/scala
+ENV PATH $SCALA_HOME/bin:$PATH
+RUN echo "export SCALA_HOME=${SCALA_HOME}" >> /etc/profile
+RUN echo "export PATH=${SCALA_HOME}/bin:$PATH" >> /etc/profile
+ENV SCALA_VERSION=2.12.8
+RUN cd "/tmp" && \
+    wget "https://downloads.typesafe.com/scala/${SCALA_VERSION}/scala-${SCALA_VERSION}.tgz" && \
+    tar xzf "scala-${SCALA_VERSION}.tgz" && \
+    mkdir "${SCALA_HOME}" && \
+    rm "/tmp/scala-${SCALA_VERSION}/bin/"*.bat && \
+    mv "/tmp/scala-${SCALA_VERSION}/bin" "/tmp/scala-${SCALA_VERSION}/lib" "${SCALA_HOME}" && \
+    ln -s "${SCALA_HOME}/bin/"* "/usr/bin/" && \
+    rm -rf "/tmp/"*
+
+ENV KOTLIN_HOME /usr/lib/kotlinc
+ENV PATH $PATH:$KOTLIN_HOME/bin
+RUN echo "export KOTLIN_HOME=${KOTLIN_HOME}" >> /etc/profile
+RUN echo "export PATH=${KOTLIN_HOME}/bin:$PATH" >> /etc/profile
+ENV KOTLIN_VERSION=1.3.21
+RUN cd /usr/lib && \
+    wget https://github.com/JetBrains/kotlin/releases/download/v$KOTLIN_VERSION/kotlin-compiler-$KOTLIN_VERSION.zip && \
+    unzip kotlin-compiler-*.zip && \
+    rm kotlin-compiler-*.zip && \
+    rm -f kotlinc/bin/*.bat
+
+ENV GO_HOME /usr/local/go
+ENV PATH $PATH:$GO_HOME/bin
+RUN echo "export GO_HOME=${GO_HOME}" >> /etc/profile
+RUN echo "export PATH=${GO_HOME}/bin:$PATH" >> /etc/profile
+ENV GOVERSION=1.12
+RUN echo "Downloading Go ${GOVERSION}" && \
+    echo curl -o /tmp/go.tar.gz -J -L "https://storage.googleapis.com/golang/go${GOVERSION}.linux-amd64.tar.gz" && \
+    curl -o /tmp/go.tar.gz -J -L "https://storage.googleapis.com/golang/go${GOVERSION}.linux-amd64.tar.gz" && \
+    echo "Installing Go ${GOVERSION}" && \
+    sudo tar -zxf /tmp/go.tar.gz -C /usr/local/ && \
+    rm -f /tmp/go.tar.gz
+
+# R packages
+RUN conda install --quiet --yes \
+    'r-base' \
+    'r-rodbc' \
+    'unixodbc' \
+    'r-irkernel' \
+    'r-plyr' \
+    'r-devtools' \
+    'r-tidyverse' \
+    'r-shiny' \
+    'r-rmarkdown' \
+    'r-forecast' \
+    'r-rsqlite' \
+    'r-reshape2' \
+    'r-nycflights13' \
+    'r-caret' \
+    'r-rcurl' \
+    'r-crayon' \
+    'r-randomforest' \
+    'r-htmltools' \
+    'r-sparklyr' \
+    'r-htmlwidgets' \
+    'r-hexbin' && \
+    conda clean -tipsy
+
+ARG MAVEN_VERSION=3.6.0
+ARG USER_HOME_DIR="/root"
+ARG SHA=fae9c12b570c3ba18116a4e26ea524b29f7279c17cbaadc3326ca72927368924d9131d11b9e851b8dc9162228b6fdea955446be41207a5cfc61283dd8a561d2f
+ARG BASE_URL=https://apache.osuosl.org/maven/maven-3/${MAVEN_VERSION}/binaries
+
+RUN mkdir -p /usr/share/maven /usr/share/maven/ref \
+  && curl -fsSL -o /tmp/apache-maven.tar.gz ${BASE_URL}/apache-maven-${MAVEN_VERSION}-bin.tar.gz \
+#   && echo "${SHA}  /tmp/apache-maven.tar.gz" | sha512sum -c - \
+  && tar -xzf /tmp/apache-maven.tar.gz -C /usr/share/maven --strip-components=1 \
+  && rm -f /tmp/apache-maven.tar.gz \
+  && ln -s /usr/share/maven/bin/mvn /usr/bin/mvn
+
+ENV MAVEN_HOME /usr/share/maven
+ENV MAVEN_CONFIG "$USER_HOME_DIR/.m2"
+RUN echo "export MAVEN_HOME=${MAVEN_HOME}" >> /etc/profile
+RUN echo "export MAVEN_CONFIG=${MAVEN_CONFIG}" >> /etc/profile
+RUN echo "export PATH=${MAVEN_HOME}/bin:$PATH" >> /etc/profile
+
+COPY ubuntu/settings-docker.xml /usr/share/maven/ref/
+
+RUN apt-get purge && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# FROM base_dev
+

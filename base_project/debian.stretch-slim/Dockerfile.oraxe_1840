@@ -1,0 +1,95 @@
+FROM  oraclelinux
+
+ENV DEBIAN_FRONTEND noninteractive
+# RUN sed -i "s/deb.debian.org/ftp.kr.debian.org/g" /etc/apt/sources.list
+# RUN sed -i "s/security.debian.org/ftp.kr.debian.org/g" /etc/apt/sources.list
+RUN yum -y update
+RUN yum -y upgrade
+RUN yum -y install \
+    ca-certificates software-properties-common sudo apt-utils locales \
+    openssh-server supervisor vim nano wget curl gpg netbase net-tools \
+    libmagickcore-dev fonts-liberation
+# RUN yum autoclean --yes && \
+#     yum clean --yes && \
+#     rm -rf /var/cache/apt /var/lib/apt/lists
+
+RUN cp -r /etc/ssh /ssh_orig && \
+    rm -rf /etc/ssh/*
+RUN ln -sf /usr/share/zoneinfo/Asia/Seoul /etc/localtime
+# RUN locale --purge
+# RUN locale-gen ko_KR.UTF-8
+# RUN dpkg-reconfigure locales
+RUN echo 'LANG="ko_KR.UTF-8"' >> /etc/environment && \
+    echo 'LANGUAGE="ko_KR;ko;en_GB;en"' >> /etc/environment && \
+    echo 'LC_ALL="ko_KR.UTF-8"' >> /etc/environment
+RUN echo "export QT_XKB_CONFIG_ROOT=/usr/share/X11/locale" >> /etc/profile && \
+    echo 'export LANG=ko_KR.UTF-8' >> /etc/profile && \
+    echo 'export LANGUAGE="ko_KR;ko;en_GB;en"' >> /etc/profile && \
+    echo 'export LC_ALL=ko_KR.UTF-8' >> /etc/profile
+RUN echo 'LANG="ko_KR.UTF-8"' >> /etc/default/locale && \
+    echo 'LANGUAGE="ko_KR;ko;en_GB;en"' >> /etc/default/locale && \
+    echo 'LC_ALL="ko_KR.UTF-8"' >> /etc/default/locale
+
+ARG NB_USER="ubuntu"
+ARG NB_UID="1000"
+ARG NB_GID="1000"
+RUN groupadd --gid $NB_GID ubuntu && \
+    # echo "auth required pam_wheel.so use_uid" >> /etc/pam.d/su && \
+    useradd -m -s /bin/bash -N -u $NB_UID $NB_USER && \
+    usermod -a -G ubuntu $NB_USER && \
+    usermod -a -G wheel $NB_USER && \
+    echo 'root:root' | chpasswd && \
+    echo 'ubuntu:ubuntu' | chpasswd && \
+    echo "ubuntu    ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers && \
+    chmod g+w /etc/passwd
+
+# Environment variables required for this build (do NOT change)
+# -------------------------------------------------------------
+ENV ORACLE_BASE=/opt/oracle \
+    ORACLE_HOME=/opt/oracle/product/18c/dbhomeXE \
+    ORACLE_SID=XE \
+    INSTALL_FILE_1="oracle-database-xe-18c-1.0-1.x86_64.rpm" \
+    RUN_FILE="runOracle.sh" \
+    PWD_FILE="setPassword.sh" \
+    CONF_FILE="oracle-xe-18c.conf" \
+    CHECK_DB_FILE="checkDBStatus.sh" \
+    INSTALL_DIR="$HOME/install" \
+    ORACLE_DOCKER_INSTALL="true"
+
+# Use second ENV so that variable get substituted
+ENV PATH=$ORACLE_HOME/bin:$PATH
+RUN echo "export ORACLE_HOME=${ORACLE_HOME}" >> /etc/bash.bashrc && \
+    echo "export PATH=${ORACLE_HOME}/bin:$PATH" >> /etc/bash.bashrc && \
+    echo "export ORACLE_HOME=${ORACLE_HOME}" >> /etc/profile && \
+    echo "export PATH=${ORACLE_HOME}/bin:$PATH" >> /etc/profile
+# Copy binaries
+# -------------
+COPY debian/$INSTALL_FILE_1 debian/$RUN_FILE debian/$PWD_FILE debian/$CHECK_DB_FILE $INSTALL_DIR/
+COPY debian/$CONF_FILE $INSTALL_DIR/
+
+RUN cd $INSTALL_DIR && \
+    yum -y install oracle-database-preinstall-18c file openssl $INSTALL_FILE_1 && \
+    rm -rf /var/cache/yum && \
+    mkdir -p $ORACLE_BASE/scripts/setup && \
+    mkdir $ORACLE_BASE/scripts/startup && \
+    ln -s $ORACLE_BASE/scripts /docker-entrypoint-initdb.d && \
+    mkdir -p $ORACLE_BASE/oradata /home/oracle && \
+    chown -R oracle:oinstall $ORACLE_BASE/oradata /home/oracle && \
+    mv $INSTALL_DIR/$RUN_FILE $ORACLE_BASE/ && \
+    mv $INSTALL_DIR/$PWD_FILE $ORACLE_BASE/ && \
+    mv $INSTALL_DIR/$CHECK_DB_FILE $ORACLE_BASE/ && \
+    mv $INSTALL_DIR/$CONF_FILE /etc/sysconfig/ && \
+    ln -s $ORACLE_BASE/$PWD_FILE / && \
+    cd $HOME && \
+    rm -rf $INSTALL_DIR && \
+    target_txt=$(cat /etc/security/limits.d/oracle-database-preinstall-18c.conf | grep -e 'oracle *hard *memlock*') && \
+    sed -i "/^$target_txt/ c#$target_txt" /etc/security/limits.d/oracle-database-preinstall-18c.conf && \
+    chmod ug+x $ORACLE_BASE/*.sh
+
+
+ADD debian/etc/supervisor/conf.d/sshd.conf /etc/supervisor/conf.d/
+ADD debian/etc/supervisor/supervisord.conf /etc/supervisor/
+ADD debian/entrypoint.sh /usr/local/bin
+EXPOSE 1521 8080 5500 22
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD exec $ORACLE_BASE/$RUN_FILE

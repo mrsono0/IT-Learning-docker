@@ -1,0 +1,49 @@
+FROM mrsono0/base_project:alpine_base
+
+# RUN curl -Lo /etc/apk/keys/sgerrand.rsa.pub https://alpine-pkgs.sgerrand.com/sgerrand.rsa.pub && \
+#     curl -Lo glibc.apk "https://github.com/sgerrand/alpine-pkg-glibc/releases/download/${GLIBC_VERSION}/glibc-${GLIBC_VERSION}.apk" && \
+#     curl -Lo glibc-bin.apk "https://github.com/sgerrand/alpine-pkg-glibc/releases/download/${GLIBC_VERSION}/glibc-bin-${GLIBC_VERSION}.apk"
+    # && \
+    # apk add glibc-bin.apk glibc.apk && \
+    # /usr/glibc-compat/sbin/ldconfig /lib /usr/glibc-compat/lib && \
+    # echo 'hosts: files mdns4_minimal [NOTFOUND=return] dns mdns4' >> /etc/nsswitch.conf && \
+    # # apk del curl && \
+    # rm -rf glibc.apk glibc-bin.apk /etc/apk/keys/sgerrand.rsa.pub /tmp/* /var/cache/apk/*
+
+
+# Install Anaconda3 & Configure environment
+ENV CONDA_DIR /opt/conda
+ENV PATH $CONDA_DIR/bin:$PATH
+RUN wget --quiet https://repo.anaconda.com/archive/Anaconda3-5.2.0-Linux-x86_64.sh && \
+    /bin/bash Anaconda3-5.2.0-Linux-x86_64.sh -b -p $CONDA_DIR && \
+    rm Anaconda3-5.2.0-Linux-x86_64.sh && \
+    # apk del build-dependencies && \
+    echo 'export PATH=$CONDA_DIR/bin:$PATH' >> /etc/profile.d/conda.sh
+RUN conda install -y -c conda-forge pyspark flask keras tensorflow
+# RUN conda install -y -c creditx toree
+# RUN pip install -i https://pypi.anaconda.org/hyoon/simple toree
+# Setup Jupyter Config and notebooks directory
+# ENV NOTEBOOKS_CONFIG_DIR /opt/jupyter/config
+# RUN mkdir -p $NOTEBOOKS_CONFIG_DIR
+# COPY jupyter_notebook_config.py $NOTEBOOKS_CONFIG_DIR/
+# RUN mkdir -p /notebooks /notebooks/projects
+# ADD examples/ /notebooks/examples
+# RUN ln -s /notebooks/projects /data
+
+# Apache Toree kernel for Spark and notebook interaction with Spark 2.0
+# COPY toree-0.2.0.dev1.tar.gz /opt/
+# RUN pip install /opt/toree-0.2.0.dev1.tar.gz
+# RUN jupyter toree install --ToreeInstall.prefix=$CONDA_DIR --ToreeInstall.toree_opts=--nosparkcontext
+
+# Set PYSPARK_HOME in the python2 spec
+# RUN jq --arg v "$CONDA_DIR/envs/python2/bin/python" \
+# '.["env"]["PYSPARK_PYTHON"]=$v' \
+# $CONDA_DIR/share/jupyter/kernels/python2/kernel.json > /tmp/kernel.json && \
+# mv /tmp/kernel.json $CONDA_DIR/share/jupyter/kernels/python2/kernel.json
+
+EXPOSE 8888
+# WORKDIR /workspace
+# Start notebook server
+# COPY start-notebook.sh /usr/local/bin/
+# CMD ["start-notebook.sh"]
+CMD jupyter notebook --no-browser --ip=0.0.0.0 ${notebook_dir} --allow-root --NotebookApp.token= --NotebookApp.allow_origin='*'

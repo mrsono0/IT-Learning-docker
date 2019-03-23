@@ -1,0 +1,81 @@
+version: "2"
+
+services:
+  namenode:
+    image: mrsono0/bigdata_project:hadoop_namenode
+    container_name: namenode
+    volumes:
+      - hadoop_namenode:/hadoop/dfs/name
+    environment:
+      - CLUSTER_NAME=test
+    env_file:
+      - ./ubuntu/hadoop.env
+  
+  resourcemanager:
+    image: mrsono0/bigdata_project:hadoop_resourcemanager
+    container_name: resourcemanager
+    depends_on:
+      - namenode
+      - datanode1
+      - datanode2
+    env_file:
+      - ./ubuntu/hadoop.env
+  
+  historyserver:
+    image: mrsono0/bigdata_project:hadoop_historyserver
+    container_name: historyserver
+    depends_on:
+      - namenode
+      - datanode1
+      - datanode2
+    volumes:
+      - hadoop_historyserver:/hadoop/yarn/timeline
+    env_file:
+      - ./ubuntu/hadoop.env
+  
+  nodemanager1:
+    image: mrsono0/bigdata_project:hadoop_nodemanager
+    container_name: nodemanager1
+    depends_on:
+      - namenode
+      - datanode1
+      - datanode2
+    env_file:
+      - ./ubuntu/hadoop.env
+  
+  datanode1:
+    image: mrsono0/bigdata_project:hadoop_datanode
+    container_name: datanode1
+    depends_on:
+      - namenode
+    volumes:
+      - hadoop_datanode1:/hadoop/dfs/data
+    env_file:
+      - ./ubuntu/hadoop.env
+  
+  datanode2:
+    image: mrsono0/bigdata_project:hadoop_datanode
+    container_name: datanode2
+    depends_on:
+      - namenode
+    volumes:
+      - hadoop_datanode2:/hadoop/dfs/data
+    env_file:
+      - ./ubuntu/hadoop.env
+  
+  datanode3:
+    image: mrsono0/bigdata_project:hadoop_datanode
+    container_name: datanode3
+    depends_on:
+      - namenode
+    volumes:
+      - hadoop_datanode3:/hadoop/dfs/data
+    env_file:
+      - ./ubuntu/hadoop.env
+
+volumes:
+  hadoop_namenode:
+  hadoop_datanode1:
+  hadoop_datanode2:
+  hadoop_datanode3:
+  hadoop_historyserver:

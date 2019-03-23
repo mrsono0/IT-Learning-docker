@@ -1,0 +1,17 @@
+FROM mrsono0/base_project:alpine_base
+
+RUN apk add --no-cache mariadb mariadb-client pwgen && \
+    rm -f /var/cache/apk/*
+
+ADD alpine/run_mariadb.sh /scripts/run_mariadb.sh
+RUN mkdir /docker-entrypoint-initdb.d && \
+    mkdir /scripts/pre-exec.d && \
+    mkdir /scripts/pre-init.d && \
+    chmod -R 755 /scripts
+
+EXPOSE 3306
+
+# VOLUME ["/var/lib/mysql"]
+
+# ENTRYPOINT ["/scripts/run_mariadb.sh"]
+CMD ["/scripts/run_mariadb.sh"]

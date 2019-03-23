@@ -1,0 +1,17 @@
+FROM mrsono0/base_project:base_dev_bionic
+
+ENV DEBIAN_FRONTEND noninteractive
+RUN sed -i "s/archive.ubuntu.com/mirror.kakao.com/g" /etc/apt/sources.list
+# RUN sed -i "s/archive.canonical.com/mirror.kakao.com/g" /etc/apt/sources.list
+RUN sed -i "s/security.ubuntu.com/mirror.kakao.com/g" /etc/apt/sources.list
+RUN sed -i "s/# deb-src/deb-src/g" /etc/apt/sources.list
+RUN apt-get -y update --fix-missing
+RUN apt-get -yy upgrade
+
+ADD ubuntu/assets /assets
+RUN /assets/setup.sh
+
+EXPOSE 1521
+EXPOSE 8080
+
+CMD /usr/sbin/startup.sh && tail -f /dev/null

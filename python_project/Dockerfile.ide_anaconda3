@@ -1,0 +1,48 @@
+FROM mrsono0/base_project:ide
+
+ENV PATH /opt/conda/bin:$PATH
+
+RUN update-ca-certificates -f && apt-get update --fix-missing && apt-get upgrade -y && apt-get install -y \
+    wget bzip2 ca-certificates software-properties-common \
+    libglib2.0-0 libxext6 libsm6 libxrender1 \
+    libatlas3-base libopenblas-base libatlas-base-dev build-essential \
+    git mercurial subversion \
+    && apt-get clean
+
+# Spark
+# ENV GIT_SSL_NO_VERIFY=false
+# RUN cd /usr/ \
+#     && wget "http://ftp.tudelft.nl/apache/spark/spark-2.3.1/spark-2.3.1-bin-hadoop2.7.tgz" \
+#     && tar xzf spark-2.3.1-bin-hadoop2.7.tgz \
+#     && rm spark-2.3.1-bin-hadoop2.7.tgz \
+#     && mv spark-2.3.1-bin-hadoop2.7 spark
+# ENV SPARK_HOME /usr/spark
+# ENV SPARK_MAJOR_VERSION 2
+# ENV PYTHONPATH=$SPARK_HOME/python/lib/py4j-0.10.7-src.zip:$SPARK_HOME/python/:$PYTHONPATH
+# RUN mkdir -p /usr/spark/work/ \
+#     && chmod -R 777 /usr/spark/work/
+# ENV SPARK_MASTER_PORT 7077
+
+# RUN pip install --upgrade pip \
+#     && pip install pylint coverage pytest --quiet
+
+# RUN wget -O ./bin/sbt https://raw.githubusercontent.com/paulp/sbt-extras/master/sbt \
+#     && chmod 0755 ./bin/sbt \
+#     && ./bin/sbt -v -211 -sbt-create about
+# ENV PATH=$PATH:$SPARK_HOME/bin/
+# CMD /usr/spark/bin/spark-class org.apache.spark.deploy.master.Master
+
+ENV CONDA_DIR /opt/conda
+# RUN wget --quiet https://repo.anaconda.com/archive/Anaconda3-5.3.0-Linux-x86_64.sh -O ~/anaconda.sh && \
+RUN wget --quiet https://repo.anaconda.com/archive/Anaconda3-5.2.0-Linux-x86_64.sh -O ~/anaconda.sh && \
+    /bin/bash ~/anaconda.sh -b -p /opt/conda && \
+    rm ~/anaconda.sh && \
+    ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh && \
+    echo "export PATH=${CONDA_DIR}/bin:$PATH" >> /etc/profile && \
+    echo ". ${CONDA_DIR}/etc/profile.d/conda.sh" >> ~/.bashrc && \
+    echo "${CONDA_DIR}/bin/conda activate base" >> ~/.bashrc \
+    echo ". ${CONDA_DIR}/etc/profile.d/conda.sh" >> /home/ubuntu/.bashrc && \
+    echo "${CONDA_DIR}/bin/conda activate base" >> /home/ubuntu/.bashrc
+RUN conda install -y -c conda-forge pyspark flask keras tensorflow pylint coverage pytest
+# RUN pip install -i https://pypi.anaconda.org/hyoon/simple toree
+# RUN jupyter toree install --ToreeInstall.prefix=$CONDA_DIR --ToreeInstall.toree_opts=--nosparkcontext

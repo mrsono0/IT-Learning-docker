@@ -1,0 +1,209 @@
+FROM mrsono0/base_project:base_alpine_3_9
+
+RUN echo "http://dl-3.alpinelinux.org/alpine/v3.9/main" > /etc/apk/repositories && \
+    echo "http://dl-3.alpinelinux.org/alpine/v3.9/community" >> /etc/apk/repositories && \
+    echo "http://dl-3.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories
+RUN apk update && \
+    apk upgrade
+
+# Here we install GNU libc (aka glibc) and set C.UTF-8 locale as default.
+RUN ALPINE_GLIBC_BASE_URL="https://github.com/sgerrand/alpine-pkg-glibc/releases/download" && \
+    ALPINE_GLIBC_PACKAGE_VERSION="2.28-r0" && \
+    ALPINE_GLIBC_BASE_PACKAGE_FILENAME="glibc-$ALPINE_GLIBC_PACKAGE_VERSION.apk" && \
+    ALPINE_GLIBC_BIN_PACKAGE_FILENAME="glibc-bin-$ALPINE_GLIBC_PACKAGE_VERSION.apk" && \
+    ALPINE_GLIBC_I18N_PACKAGE_FILENAME="glibc-i18n-$ALPINE_GLIBC_PACKAGE_VERSION.apk" && \
+    apk add --no-cache --virtual=.build-dependencies wget ca-certificates && \
+    echo \
+        "-----BEGIN PUBLIC KEY-----\
+        MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApZ2u1KJKUu/fW4A25y9m\
+        y70AGEa/J3Wi5ibNVGNn1gT1r0VfgeWd0pUybS4UmcHdiNzxJPgoWQhV2SSW1JYu\
+        tOqKZF5QSN6X937PTUpNBjUvLtTQ1ve1fp39uf/lEXPpFpOPL88LKnDBgbh7wkCp\
+        m2KzLVGChf83MS0ShL6G9EQIAUxLm99VpgRjwqTQ/KfzGtpke1wqws4au0Ab4qPY\
+        KXvMLSPLUp7cfulWvhmZSegr5AdhNw5KNizPqCJT8ZrGvgHypXyiFvvAH5YRtSsc\
+        Zvo9GI2e2MaZyo9/lvb+LbLEJZKEQckqRj4P26gmASrZEPStwc+yqy1ShHLA0j6m\
+        1QIDAQAB\
+        -----END PUBLIC KEY-----" | sed 's/   */\n/g' > "/etc/apk/keys/sgerrand.rsa.pub" && \
+    wget \
+        "$ALPINE_GLIBC_BASE_URL/$ALPINE_GLIBC_PACKAGE_VERSION/$ALPINE_GLIBC_BASE_PACKAGE_FILENAME" \
+        "$ALPINE_GLIBC_BASE_URL/$ALPINE_GLIBC_PACKAGE_VERSION/$ALPINE_GLIBC_BIN_PACKAGE_FILENAME" \
+        "$ALPINE_GLIBC_BASE_URL/$ALPINE_GLIBC_PACKAGE_VERSION/$ALPINE_GLIBC_I18N_PACKAGE_FILENAME" && \
+    apk add --no-cache \
+        "$ALPINE_GLIBC_BASE_PACKAGE_FILENAME" \
+        "$ALPINE_GLIBC_BIN_PACKAGE_FILENAME" \
+        "$ALPINE_GLIBC_I18N_PACKAGE_FILENAME" && \
+    \
+    rm "/etc/apk/keys/sgerrand.rsa.pub" && \
+    /usr/glibc-compat/bin/localedef --force --inputfile POSIX --charmap UTF-8 "$LANG" || true && \
+    echo "export LANG=$LANG" > /etc/profile.d/locale.sh && \
+    \
+    # apk del glibc-i18n && \
+    \
+    rm "/root/.wget-hsts" && \
+    # apk del .build-dependencies && \
+    rm \
+        "$ALPINE_GLIBC_BASE_PACKAGE_FILENAME" \
+        "$ALPINE_GLIBC_BIN_PACKAGE_FILENAME" \
+        "$ALPINE_GLIBC_I18N_PACKAGE_FILENAME" && \
+    rm -rf glibc.apk glibc-bin.apk /etc/apk/keys/sgerrand.rsa.pub /tmp/* /var/cache/apk/*
+
+ENV MINICONDA_HOME /opt/conda
+ENV PATH $MINICONDA_HOME/bin:$PATH
+RUN echo "export MINICONDA_HOME=/opt/conda" >> /etc/profile
+RUN echo "export PATH=${MINICONDA_HOME}/bin:$PATH" >> /etc/profile
+
+ENV JAVA_HOME /usr/lib/jvm/default-jvm
+ENV PATH $JAVA_HOME/bin:$PATH
+RUN echo "export JAVA_HOME=${JAVA_HOME}" >> /etc/profile
+RUN echo "export PATH=${JAVA_HOME}/bin:$PATH" >> /etc/profile
+
+# http://jdk.java.net/
+ENV JAVA_INSTALL_PATH /usr/lib/jvm/openjdk-13
+ENV JAVA_VERSION 13-ea+7
+ENV JAVA_URL https://download.java.net/java/early_access/alpine/7/binaries/openjdk-13-ea+7_linux-x64-musl_bin.tar.gz
+ENV JAVA_SHA256 436d25bc7bf09afa7b8ca3cfa4cd6637687114431b45a06826597c8ae0d4dba3
+
+RUN set -eux; \
+    \
+    wget -O /openjdk.tgz "$JAVA_URL"; \
+    echo "$JAVA_SHA256 */openjdk.tgz" | sha256sum -c -; \
+    mkdir -p "$JAVA_INSTALL_PATH"; \
+    tar --extract --file /openjdk.tgz --directory "$JAVA_INSTALL_PATH" --strip-components 1; \
+    ln -sf "$JAVA_INSTALL_PATH" /usr/lib/jvm/default-jvm; \
+	ln -sf "$JAVA_INSTALL_PATH" /usr/lib/jvm/latest; \
+    rm /openjdk.tgz
+RUN cd /usr/local/bin \
+    && ln -s "${JAVA_HOME}"/bin/java java \
+    && ln -s "${JAVA_HOME}"/bin/javac javac
+
+ENV MINICONDA_VER latest
+ENV MINICONDA Miniconda3-$MINICONDA_VER-Linux-x86_64.sh
+ENV MINICONDA_URL https://repo.continuum.io/miniconda/$MINICONDA
+RUN mkdir -p /opt/conda && \
+    curl -L $MINICONDA_URL -o miniconda.sh && \
+    /bin/bash miniconda.sh -f -b -p /opt/conda && \
+    rm miniconda.sh && \
+    # /opt/conda/bin/conda install conda python=3.6.8 --yes && \
+    ln -s /opt/conda/bin/conda /usr/bin/conda && \
+    conda clean --yes --all && \
+    rm -rf /var/cache/apk/*
+
+RUN ln -fs /opt/conda/bin/pip /usr/bin/pip && \
+    ln -fs /opt/conda/bin/pip /usr/bin/pip3 && \
+    ln -fs /opt/conda/bin/python3.7 /usr/bin/python && \
+    ln -fs /opt/conda/bin/python3.7 /usr/bin/python3.7
+RUN pip install --no-cache-dir --upgrade setuptools pip
+
+ENV NODE_VERSION 11.10.1
+RUN apk add --no-cache \
+        libstdc++
+RUN apk add \
+        binutils-gold \
+        g++ \
+        gcc \
+        musl-dev \
+        libgcc \
+        linux-headers \
+        unixodbc \
+        unixodbc-dev \
+        gfortran \
+        make \
+        procps \
+    && curl -fsSLO --compressed "https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION.tar.xz" \
+    && curl -fsSLO --compressed "https://nodejs.org/dist/v$NODE_VERSION/SHASUMS256.txt.asc" \
+    && tar -xf "node-v$NODE_VERSION.tar.xz" \
+    && cd "node-v$NODE_VERSION" \
+    && ./configure \
+    && make -j$(getconf _NPROCESSORS_ONLN) \
+    && make install \
+    && cd .. \
+    && rm -Rf "node-v$NODE_VERSION" \
+    && rm -f "node-v$NODE_VERSION.tar.xz" 
+
+ENV YARN_VERSION 1.13.0
+RUN apk add gnupg \
+    && curl -fsSLO --compressed "https://yarnpkg.com/downloads/$YARN_VERSION/yarn-v$YARN_VERSION.tar.gz" \
+    && curl -fsSLO --compressed "https://yarnpkg.com/downloads/$YARN_VERSION/yarn-v$YARN_VERSION.tar.gz.asc" \
+    && mkdir -p /opt \
+    && tar -xzf yarn-v$YARN_VERSION.tar.gz -C /opt/ \
+    && ln -s /opt/yarn-v$YARN_VERSION/bin/yarn /usr/local/bin/yarn \
+    && ln -s /opt/yarn-v$YARN_VERSION/bin/yarnpkg /usr/local/bin/yarnpkg \
+    && rm yarn-v$YARN_VERSION.tar.gz.asc yarn-v$YARN_VERSION.tar.gz
+# RUN yarn self-update
+
+# RUN npm install -g npx
+# RUN npm install --save-dev typescript ts-loader npm-run-all webpack @types/express nodemon webpack-cli
+# RUN npm install --save express source-map-support
+
+ENV PATH $SCALA_HOME/bin:$PATH
+RUN echo "export SCALA_HOME=${SCALA_HOME}" >> /etc/profile
+RUN echo "export PATH=${SCALA_HOME}/bin:$PATH" >> /etc/profile
+ENV SCALA_VERSION=2.12.8 \
+    SCALA_HOME=/usr/share/scala
+# NOTE: bash is used by scala/scalac scripts, and it cannot be easily replaced with ash.
+RUN cd "/tmp" && \
+    wget "https://downloads.typesafe.com/scala/${SCALA_VERSION}/scala-${SCALA_VERSION}.tgz" && \
+    tar xzf "scala-${SCALA_VERSION}.tgz" && \
+    mkdir "${SCALA_HOME}" && \
+    rm "/tmp/scala-${SCALA_VERSION}/bin/"*.bat && \
+    mv "/tmp/scala-${SCALA_VERSION}/bin" "/tmp/scala-${SCALA_VERSION}/lib" "${SCALA_HOME}" && \
+    ln -s "${SCALA_HOME}/bin/"* "/usr/bin/" && \
+    apk del .build-dependencies && \
+    rm -rf "/tmp/"*
+
+ENV GO_HOME /usr/local/go
+ENV PATH $PATH:$GO_HOME/bin
+RUN echo "export GO_HOME=${GO_HOME}" >> /etc/profile
+RUN echo "export PATH=${GO_HOME}/bin:$PATH" >> /etc/profile
+ENV GOVERSION=1.12
+RUN echo "Downloading Go ${GOVERSION}" && \
+    echo curl -o /tmp/go.tar.gz -J -L "https://storage.googleapis.com/golang/go${GOVERSION}.linux-amd64.tar.gz" && \
+    curl -o /tmp/go.tar.gz -J -L "https://storage.googleapis.com/golang/go${GOVERSION}.linux-amd64.tar.gz" && \
+    echo "Installing Go ${GOVERSION}" && \
+    sudo tar -zxf /tmp/go.tar.gz -C /usr/local/ && \
+    rm -f /tmp/go.tar.gz
+
+RUN ln -s /bin/tar /bin/gtar
+# R packages
+RUN conda install --quiet --yes \
+    'r-base' \
+    'r-rodbc' \
+    'unixodbc' \
+    'r-irkernel' \
+    'r-plyr' \
+    'r-devtools' \
+    'r-tidyverse' \
+    'r-shiny' \
+    'r-rmarkdown' \
+    'r-forecast' \
+    'r-rsqlite' \
+    'r-reshape2' \
+    'r-nycflights13' \
+    'r-caret' \
+    'r-rcurl' \
+    'r-crayon' \
+    'r-randomforest' \
+    'r-htmltools' \
+    'r-sparklyr' \
+    'r-htmlwidgets' \
+    'r-hexbin' && \
+    conda clean -tipsy
+
+ARG MAVEN_VERSION=3.6.0
+ARG USER_HOME_DIR="/root"
+ARG SHA=fae9c12b570c3ba18116a4e26ea524b29f7279c17cbaadc3326ca72927368924d9131d11b9e851b8dc9162228b6fdea955446be41207a5cfc61283dd8a561d2f
+ARG BASE_URL=https://apache.osuosl.org/maven/maven-3/${MAVEN_VERSION}/binaries
+
+RUN mkdir -p /usr/share/maven /usr/share/maven/ref \
+  && curl -fsSL -o /tmp/apache-maven.tar.gz ${BASE_URL}/apache-maven-${MAVEN_VERSION}-bin.tar.gz \
+#   && echo "${SHA}  /tmp/apache-maven.tar.gz" | sha512sum -c - \
+  && tar -xzf /tmp/apache-maven.tar.gz -C /usr/share/maven --strip-components=1 \
+  && rm -f /tmp/apache-maven.tar.gz \
+  && ln -s /usr/share/maven/bin/mvn /usr/bin/mvn
+
+ENV MAVEN_HOME /usr/share/maven
+ENV MAVEN_CONFIG "$USER_HOME_DIR/.m2"
+RUN echo "export MAVEN_HOME=${MAVEN_HOME}" >> /etc/profile
+RUN echo "export MAVEN_CONFIG=${MAVEN_CONFIG}" >> /etc/profile
+RUN echo "export PATH=${MAVEN_HOME}/bin:$PATH" >> /etc/profile
+
+COPY alpine/settings-docker.xml /usr/share/maven/ref/

@@ -1,0 +1,79 @@
+FROM oraclelinux:7-slim
+LABEL MAINTAINER="Adrian Png <adrian.png@fuzziebrain.com>"
+
+RUN yum -y install \
+    sudo locales \
+    vi vim nano wget curl git \
+    libmagickcore-dev fonts-liberation fcitx fcitx-hangul fortune \
+    openssh openssh-server openssh-clients openssh-askpass openssl-libs \
+RUN yum install -y python-pip python-setuptools && \
+    easy_install supervisor
+
+ENV \
+  # The only environment variable that should be changed!
+  ORACLE_PASSWORD=Oracle18 \
+  EM_GLOBAL_ACCESS_YN=Y \
+  # DO NOT CHANGE 
+  ORACLE_DOCKER_INSTALL=true \
+  ORACLE_SID=XE \
+  ORACLE_BASE=/opt/oracle \
+  ORACLE_HOME=/opt/oracle/product/18c/dbhomeXE \
+  ORAENV_ASK=NO \
+  RUN_FILE=runOracle.sh \
+  SHUTDOWN_FILE=shutdownDb.sh \
+  EM_REMOTE_ACCESS=enableEmRemoteAccess.sh \
+  EM_RESTORE=reconfigureEm.sh \
+  ORACLE_XE_RPM=oracle-database-xe-18c-1.0-1.x86_64.rpm \
+  CHECK_DB_FILE=checkDBStatus.sh
+
+ADD ./centos/files/hr.dmp /tmp/
+ADD ./centos/files/apex /tmp/
+ADD ./centos/etc /etc
+COPY ./centos/files/${ORACLE_XE_RPM} /tmp/
+COPY ./centos/files/apex/apex-install.sql /tmp/
+COPY ./centos/files/apex/apex-default-pwd.sql /tmp/
+
+
+RUN yum install -y oracle-database-preinstall-18c && \
+  yum install -y /tmp/${ORACLE_XE_RPM} && \
+  rm -rf /tmp/${ORACLE_XE_RPM}
+
+COPY ./centos/scripts/*.sh ${ORACLE_BASE}/scripts/
+RUN chmod a+x ${ORACLE_BASE}/scripts/*.sh 
+
+RUN ln -sf /usr/share/zoneinfo/Asia/Seoul /etc/localtime
+
+ENV PATH=$ORACLE_HOME/bin:$PATH
+ENV ORACLE_SID=XE
+ENV ORACLE_DOCKER_INSTALL=true
+RUN echo 'export LANG="ko_KR.UTF-8"' >> /etc/profile && \
+    echo 'export LANGUAGE="ko_KR;ko;en_GB;en"' >> /etc/profile && \
+    echo 'export LC_ALL="ko_KR.UTF-8"' >> /etc/profile && \
+    echo 'export ORACLE_HOME=/opt/oracle/product/18c/dbhomeXE' >> /etc/profile && \
+    echo 'export PATH=$ORACLE_HOME/bin:$PATH' >> /etc/profile && \
+    echo 'export ORACLE_SID=XE' >> /etc/profile
+RUN echo 'LANG="ko_KR.UTF-8"' >> /etc/default/locale && \
+    echo 'LANGUAGE="ko_KR;ko;en_GB;en"' >> /etc/default/locale && \
+    echo 'LC_ALL="ko_KR.UTF-8"' >> /etc/default/locale
+
+ARG NB_USER="ubuntu"
+ARG NB_UID="1000"
+ARG NB_GID="1000"
+RUN groupadd --gid $NB_GID ubuntu && \
+    useradd -m -s /bin/bash -N -u $NB_UID $NB_USER && \
+    echo 'root:root' | chpasswd && \
+    echo 'ubuntu:ubuntu' | chpasswd && \
+    echo "ubuntu    ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers && \
+    chmod g+w /etc/passwd
+
+# 1521: Oracle listener
+# 5500: Oracle Enterprise Manager (EM) Express listener.
+EXPOSE 1521 5500 8080 22
+
+# RUN unzip /tmp/apex_18.2.zip -d /tmp
+ADD ./centos/entrypoint.sh /usr/local/bin/
+# VOLUME [ "${ORACLE_BASE}/oradata" ]
+# ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+HEALTHCHECK --interval=1m --start-period=2m --retries=10 \
+    CMD "$ORACLE_BASE/scripts/$CHECK_DB_FILE"
+CMD exec ${ORACLE_BASE}/scripts/${RUN_FILE}

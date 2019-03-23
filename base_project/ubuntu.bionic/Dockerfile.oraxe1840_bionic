@@ -1,0 +1,19 @@
+FROM mrsono0/base_project:base_bionic
+
+ENV DEBIAN_FRONTEND noninteractive
+RUN sed -i "s/archive.ubuntu.com/mirror.kakao.com/g" /etc/apt/sources.list
+# RUN sed -i "s/archive.canonical.com/mirror.kakao.com/g" /etc/apt/sources.list
+RUN sed -i "s/security.ubuntu.com/mirror.kakao.com/g" /etc/apt/sources.list
+RUN sed -i "s/# deb-src/deb-src/g" /etc/apt/sources.list
+RUN apt-get -y update --fix-missing
+RUN apt-get -yy upgrade
+
+RUN apt-get install -y alien libaio1 unixodbc awk
+ADD ubuntu/chkconfig /sbin/
+RUN chmod 755 /sbin/chkconfig
+RUN ln -s /usr/bin/awk /bin/awk
+ADD ubuntu/oracle-xe-11.2.0-1.0.x86_64.rpm /
+RUN alien --scripts -d oracle-xe-11.2.0-1.0.x86_64.rpm
+
+RUN mkdir /var/lock/subsys && \
+    touch /var/lock/subsys/listener

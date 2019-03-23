@@ -1,0 +1,18 @@
+FROM mrsono0/base_project:ide
+
+ENV CONDA_DIR=/opt/conda
+ENV SHELL=/bin/bash
+ENV PATH=$CONDA_DIR/bin:$PATH
+ENV MINICONDA_VERSION 4.5.11
+RUN cd /tmp && \
+    wget --quiet https://repo.continuum.io/miniconda/Miniconda3-${MINICONDA_VERSION}-Linux-x86_64.sh && \
+    echo "e1045ee415162f944b6aebfe560b8fee *Miniconda3-${MINICONDA_VERSION}-Linux-x86_64.sh" | md5sum -c - && \
+    /bin/bash Miniconda3-${MINICONDA_VERSION}-Linux-x86_64.sh -f -b -p $CONDA_DIR && \
+    rm Miniconda3-${MINICONDA_VERSION}-Linux-x86_64.sh && \
+    $CONDA_DIR/bin/conda config --system --prepend channels conda-forge && \
+    $CONDA_DIR/bin/conda config --system --set auto_update_conda false && \
+    $CONDA_DIR/bin/conda config --system --set show_channel_urls true && \
+    $CONDA_DIR/bin/conda install --quiet --yes conda="${MINICONDA_VERSION%.*}.*" && \
+    $CONDA_DIR/bin/conda update --all --quiet --yes && \
+    $CONDA_DIR/bin/conda install -y -c conda-forge pyspark flask keras tensorflow pylint coverage pytest && \
+    $CONDA_DIR/bin/conda clean -tipsy

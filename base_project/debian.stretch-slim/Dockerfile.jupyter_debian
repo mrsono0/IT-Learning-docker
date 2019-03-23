@@ -1,0 +1,168 @@
+FROM mrsono0/base_project:java_debian
+
+########################################################################
+# Set up OS
+########################################################################
+USER root
+EXPOSE 8888 80 443
+
+ENV CPPFLAGS=-s \
+    SHELL=/bin/bash
+
+CMD /usr/local/bin/start_jupyter.sh ${notebook_dir} --port=8888 --no-browser --allow-root --ip=0.0.0.0 --NotebookApp.token=
+
+COPY debian/util_jupyter/* /usr/local/bin/
+COPY debian/config_jupyter/bashrc /root/.bashrc
+# COPY debian/patches_jupyter /root/.patches
+# COPY debian/config_jupyter/repositories /etc/apk/repositories
+# COPY debian/config_jupyter/*.rsa.pub /etc/apk/keys/
+COPY debian/start_jupyter.sh /usr/local/bin/
+COPY debian/config_jupyter/jupyter /root/.jupyter/
+COPY debian/config_jupyter/ipydeps /root/.config/ipydeps/
+
+ENV DEBIAN_FRONTEND noninteractive
+RUN sed -i "s/deb.debian.org/ftp.kr.debian.org/g" /etc/apt/sources.list
+RUN sed -i "s/security.debian.org/ftp.kr.debian.org/g" /etc/apt/sources.list
+RUN apt-get -y update
+RUN apt-get -yy upgrade
+
+
+ENV JAVA_HOME=/usr/lib/jvm/default-jvm
+ENV PATH $JAVA_HOME/bin:/usr/local/bin:$PATH
+
+ENV BUILD_PACKAGES="\
+        build-essential \
+        linux-headers-4.9 \
+        python3-dev \
+        cmake \
+        tcl-dev \
+        xz-utils \
+        zlib1g-dev \
+        git \
+        curl" \
+    APT_PACKAGES="\
+        ca-certificates \
+        openssl \
+        graphviz \
+        fonts-noto \
+        libpng16-16 \
+        libfreetype6 \
+        libjpeg62-turbo \
+        libgomp1" \
+    # PIP_PACKAGES="\
+    #     pyyaml \
+    #     mkl \
+    #     cffi \
+    #     h5py \
+    #     requests \
+    #     pillow \
+    #     graphviz \
+    #     numpy \
+    #     pandas \
+    #     scipy \
+    #     scikit-learn \
+    #     seaborn \
+    #     matplotlib \
+    #     jupyter \
+    #     xgboost \
+    #     tensorflow \
+    #     keras \
+    #     torch \
+    #     torchvision \
+    #     mxnet-mkl" \
+    JUPYTER_CONFIG_DIR=/home/.ipython/profile_default/startup
+
+RUN set -ex; \
+    apt-get update -y; \
+    apt-get upgrade -y; \
+    apt-get install -y --no-install-recommends ${APT_PACKAGES}; \
+    apt-get install -y --no-install-recommends ${BUILD_PACKAGES}; \
+    pip install -U -v setuptools wheel; \
+    # pip install -U -v ${PIP_PACKAGES}; \
+    apt-get remove --purge --auto-remove -y ${BUILD_PACKAGES}; \
+    apt-get clean; \
+    apt-get autoclean; \
+    apt-get autoremove; \
+    rm -rf /tmp/* /var/tmp/*; \
+    rm -rf /var/lib/apt/lists/*; \
+    rm -rf /var/cache/apt/archives/*.deb \
+        /var/cache/apt/archives/partial/*.deb \
+        /var/cache/apt/*.bin; \
+    find /usr/lib/python3 -name __pycache__ | xargs rm -rf; \
+    rm -rf /root/.[acpw]*; \
+    # pip install jupyter && 
+    pip install notebook jupyter ipywidgets jupyter_dashboards pypki2 ipydeps ordo jupyterlab; \
+    pip3 install http://github.com/nbgallery/nbgallery-extensions/tarball/master#egg=jupyter_nbgallery; \
+    jupyter nbextension enable --py widgetsnbextension; \
+    jupyter serverextension enable --py jupyterlab; \
+    # jupyter nbextension enable --py --sys-prefix widgetsnbextension; \
+    jupyter serverextension enable --py jupyter_nbgallery; \
+    jupyter nbextension install --py jupyter_nbgallery; \
+    jupyter nbextension enable jupyter_nbgallery --py; \
+    jupyter dashboards quick-setup --sys-prefix; \
+    jupyter nbextension install --py ordo; \
+    jupyter nbextension enable ordo --py; \
+    mkdir -p ${JUPYTER_CONFIG_DIR}; \
+    echo "import warnings" | tee ${JUPYTER_CONFIG_DIR}/config.py; \
+    echo "warnings.filterwarnings('ignore')" | tee -a ${JUPYTER_CONFIG_DIR}/config.py; \
+    echo "c.NotebookApp.token = u''" | tee -a ${JUPYTER_CONFIG_DIR}/config.py
+
+# RUN  pip3 install --no-cache-dir --upgrade setuptools pip && \
+#   mkdir -p `python -m site --user-site` && \
+#   min-pip3 notebook==5.2.2 jupyter ipywidgets==6.0.1 jupyter_dashboards pypki2 ipydeps ordo jupyterlab && \
+#   pip3 install http://github.com/nbgallery/nbgallery-extensions/tarball/master#egg=jupyter_nbgallery && \
+#   echo "### Install jupyter extensions" && \
+#   jupyter serverextension enable --py jupyterlab && \
+#   jupyter nbextension enable --py --sys-prefix widgetsnbextension && \
+#   jupyter serverextension enable --py jupyter_nbgallery && \
+#   jupyter nbextension install --py jupyter_nbgallery && \
+#   jupyter nbextension enable jupyter_nbgallery --py && \
+#   jupyter dashboards quick-setup --sys-prefix && \
+#   jupyter nbextension install --py ordo && \
+#   jupyter nbextension enable ordo --py && \
+#   echo "### Cleanup unneeded files" && \
+#   rm -rf /usr/lib/python3*/*/tests && \
+#   rm -rf /usr/lib/python3*/ensurepip && \
+#   rm -rf /usr/lib/python3*/idlelib && \
+#   rm -f /usr/lib/python3*/distutils/command/*exe && \
+#   rm -rf /usr/share/man/* && \
+#   clean-pyc-files /usr/lib/python3* && \
+#   echo "### Apply patches" && \
+#   cd / && \
+#   sed -i 's/_max_upload_size_mb = [0-9][0-9]/_max_upload_size_mb = 50/g' \
+#     /usr/lib/python3*/site-packages/notebook/static/tree/js/notebooklist.js \
+#     /usr/lib/python3*/site-packages/notebook/static/tree/js/main.min.js \
+#     /usr/lib/python3*/site-packages/notebook/static/tree/js/main.min.js.map && \
+#   patch -t -p0 < /root/.patches/ipykernel_displayhook && \
+#   patch -t -p0 < /root/.patches/websocket_keepalive
+
+
+########################################################################
+# Add dynamic kernels
+########################################################################
+
+ADD debian/kernels_jupyter /usr/share/jupyter/kernels/
+RUN rm -rf /usr/share/jupyter/kernels/python2
+ENV SPARK_HOME=/usr/spark \
+    GOPATH=/go
+ENV PATH=$PATH:$JAVA_HOME/bin:$SPARK_HOME/bin:$GOPATH/bin:/usr/share/jupyter/kernels/installers \
+    LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$JAVA_HOME/jre/lib/amd64/server
+
+
+########################################################################
+# Add simple kernels (no extra apks)
+########################################################################
+
+RUN \
+  min-pip3 bash_kernel jupyter_c_kernel==1.0.0 && \
+  python3 -m bash_kernel.install && \
+  clean-pyc-files /usr/lib/python3*
+
+
+# ########################################################################
+# # Metadata
+# ########################################################################
+
+# ENV NBGALLERY_CLIENT_VERSION=7.8.1
+
+WORKDIR /home/notebooks

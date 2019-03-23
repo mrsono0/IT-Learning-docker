@@ -1,0 +1,27 @@
+version: '3'
+services:
+  redmine:
+    image: mrsono0/base_project:redmine_alpine
+    hostname: redmine
+    container_name: redmine
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      DB_ADAPTER: mysql2
+      DB_HOST: db
+      DB_PASSWORD: redmine
+      DB_USER: redmine
+      DB_NAME: redmine
+    depends_on:
+      - db
+  db:
+    image: mrsono0/base_project:mariadb_alpine
+    hostname: mariadb
+    container_name: mariadb
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: redmine
+      MYSQL_DATABASE: redmine
+      MYSQL_USER: redmine
+      MYSQL_PASSWORD: redmine

@@ -1,0 +1,175 @@
+FROM mrsono0/base_project:python as builder
+
+# Install packages
+ENV DEBIAN_FRONTEND noninteractive
+RUN sed -i "s/# deb-src/deb-src/g" /etc/apt/sources.list
+RUN apt-get -y update
+RUN apt-get -yy upgrade
+ENV BUILD_DEPS="git autoconf pkg-config libssl-dev libpam0g-dev \
+libx11-dev libxfixes-dev libxrandr-dev nasm xsltproc flex \
+bison libxml2-dev dpkg-dev libcap-dev"
+RUN apt-get -yy install sudo apt-utils software-properties-common $BUILD_DEPS
+
+# Build xrdp
+WORKDIR /tmp
+RUN apt-get source pulseaudio
+RUN apt-get build-dep -yy pulseaudio
+WORKDIR /tmp/pulseaudio-11.1
+RUN dpkg-buildpackage -rfakeroot -uc -b
+WORKDIR /tmp
+RUN git clone --branch v0.9.7 --recursive https://github.com/neutrinolabs/xrdp.git
+WORKDIR /tmp/xrdp
+RUN ./bootstrap
+RUN ./configure
+RUN make
+RUN make install
+WORKDIR /tmp/xrdp/sesman/chansrv/pulse
+RUN sed -i "s/\/tmp\/pulseaudio\-10\.0/\/tmp\/pulseaudio\-11\.1/g" Makefile
+RUN make
+RUN mkdir -p /tmp/so
+RUN cp *.so /tmp/so
+
+FROM mrsono0/base_project:python
+ENV DEBIAN_FRONTEND noninteractive
+RUN apt update && apt -y full-upgrade && apt install -y \
+ca-certificates \
+firefox \
+less \
+locales \
+openssh-server \
+pepperflashplugin-nonfree \
+pulseaudio \
+sudo \
+supervisor \
+uuid-runtime \
+vim \
+wget \
+xauth \
+xautolock \
+xfce4 \
+xfce4-clipman-plugin \
+xfce4-cpugraph-plugin \
+xfce4-netload-plugin \
+xfce4-screenshooter \
+xfce4-taskmanager \
+xfce4-terminal \
+xfce4-xkb-plugin \
+xorgxrdp \
+xprintidle \
+xrdp \
+&& \
+rm -rf /var/cache/apt /var/lib/apt/lists && \
+mkdir -p /var/lib/xrdp-pulseaudio-installer
+COPY --from=builder /tmp/so/module-xrdp-source.so /var/lib/xrdp-pulseaudio-installer
+COPY --from=builder /tmp/so/module-xrdp-sink.so /var/lib/xrdp-pulseaudio-installer
+ADD ubuntu/bin /usr/bin
+ADD ubuntu/etc /etc
+ADD ubuntu/autostart /etc/xdg/autostart
+#ADD pulse /usr/lib/pulse-10.0/modules/
+
+# Configure
+RUN mkdir /var/run/dbus && \
+cp /etc/X11/xrdp/xorg.conf /etc/X11 && \
+sed -i "s/console/anybody/g" /etc/X11/Xwrapper.config && \
+sed -i "s/xrdp\/xorg/xorg/g" /etc/xrdp/sesman.ini && \
+locale-gen en_US.UTF-8 && \
+echo "xfce4-session" > /etc/skel/.Xclients && \
+cp -r /etc/ssh /ssh_orig && \
+rm -rf /etc/ssh/* && \
+rm -rf /etc/xrdp/rsakeys.ini /etc/xrdp/*.pem
+
+# # Add sample user
+# # sample user uses uid 999 to reduce conflicts with user ids when mounting an existing home dir
+# # the below has represents the password 'ubuntu'
+# # run `openssl passwd -1 'newpassword'` to create a custom hash
+ARG PASSWORDHASH="$1$1osxf5dX$z2IN8cgmQocDYwTCkyh6r/"
+ENV PASSWORDHASH=${PASSWORDHASH}
+# RUN addgroup --gid 999 ubuntu && \
+# useradd -m -u 999 -s /bin/bash -g ubuntu ubuntu && \
+RUN echo "ubuntu:${PASSWORDHASH}" | /usr/sbin/chpasswd -e && \
+# echo "ubuntu ALL=(ALL) ALL" >> /etc/sudoers && \
+unset PASSWORDHASH
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV DBUS_SESSION_BUS_ADDRESS=/dev/null
+RUN apt update --fix-missing -y && apt upgrade --purge -y
+RUN apt install -y language-pack-ko language-pack-ko-base
+RUN apt install -y curl git gpg apt-utils uuid-runtime net-tools
+RUN apt install -y fbterm ibus ibus-hangul 
+RUN apt install -y x11-apps xfonts-encodings xfonts-base xfonts-100dpi xfonts-75dpi xfonts-cyrillic
+RUN apt install -y fonts-unfonts-core fonts-unfonts-extra fonts-nanum fonts-nanum-coding fonts-nanum-extra
+# RUN apt autoremove --purge -y && apt clean && rm -rf /var/cache/apt /var/lib/apt/lists
+
+# Add the vscode debian repo 
+RUN curl -sSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor | apt-key add -
+RUN echo "deb [arch=amd64] https://packages.microsoft.com/repos/vscode stable main" > /etc/apt/sources.list.d/vscode.list
+RUN apt-get update && apt-get -y install \
+    code libasound2 libatk1.0-0 libcairo2 libcups2 libexpat1 libfontconfig1 \
+	libfreetype6 libgtk2.0-0 libpango-1.0-0 libx11-xcb1 libxcomposite1 libxcursor1 \
+	libxdamage1 libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 \
+	libxss1 libxtst6 xauth ttf-ubuntu-font-family
+RUN apt-get autoremove --purge -y && apt clean && rm -rf /var/cache/apt /var/lib/apt/lists
+
+RUN echo 'root:root' | chpasswd
+# RUN useradd -ms /bin/bash ubuntu
+RUN echo 'ubuntu:ubuntu' | chpasswd
+RUN echo "ubuntu    ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+
+# RUN mv /etc/localtime /etc/localtime.old
+RUN ln -sf /usr/share/zoneinfo/Asia/Seoul /etc/localtime
+RUN echo "ko_KR.UTF-8 UTF-8" >> /var/lib/locales/supported.d/ko && \
+    echo "ko_KR.EUC-KR EUC-KR" >> /var/lib/locales/supported.d/ko
+RUN locale-gen --purge
+RUN locale-gen ko_KR.UTF-8
+RUN dpkg-reconfigure locales
+RUN echo 'LANG="ko_KR.UTF-8"' >> /etc/environment && \
+    echo 'LANG="ko_KR.EUC-KR"' >> /etc/environment && \
+    echo 'LANGUAGE="ko_KR;ko;en_GB;en"' >> /etc/environment && \
+    echo 'LC_ALL="ko_KR.UTF-8"' >> /etc/environment
+RUN echo 'export LANG="ko_KR.UTF-8"' >> /etc/profile && \
+    echo 'export LANG="ko_KR.EUC-KR"' >> /etc/profile && \
+    echo 'export LANGUAGE="ko_KR;ko;en_GB;en"' >> /etc/profile && \
+    echo 'export LC_ALL="ko_KR.UTF-8"' >> /etc/profile
+RUN echo 'LANG="ko_KR.UTF-8"' >> /etc/default/locale && \
+    echo 'LANG="ko_KR.EUC-KR"' >> /etc/default/locale && \
+    echo 'LANGUAGE="ko_KR;ko;en_GB;en"' >> /etc/default/locale && \
+    echo 'LC_ALL="ko_KR.UTF-8"' >> /etc/default/locale
+RUN echo "export GTK_IM_MODULE=ibus" >> /etc/X11/xinit/xinitrc && \
+    echo "export XMODIFIERS=@im=ibus" >> /etc/X11/xinit/xinitrc && \
+    echo "export QT_IM_MODULE=ibus" >> /etc/X11/xinit/xinitrc && \
+    echo "ibus-daemon -drx" >> /etc/X11/xinit/xinitrc
+RUN echo "export GTK_IM_MODULE=ibus" >> /etc/profile && \
+    echo "export XMODIFIERS=@im=ibus" >> /etc/profile && \
+    echo "export QT_IM_MODULE=ibus" >> /etc/profile && \
+    echo "ibus-daemon -drx" >> /etc/profile
+
+ENV USERNAME=ubuntu
+ENV VSCODECONF=/var/vscode/config 
+ENV VSCODEEXT=/var/vscode/extensions
+ENV VSCODE code --user-data-dir ${VSCODECONF} --extensions-dir ${VSCODEEXT}
+RUN echo "export PATH=$PATH:~/.local/bin" >> /etc/profile \
+	&& echo "alias vscode='${VSCODE}'" >> ~/.bashrc \
+    && echo "alias vscode='${VSCODE}'" >> /home/ubuntu/.bashrc
+
+RUN mkdir -p ${VSCODECONF} ${VSCODEEXT} \
+	&& chown -R ${USERNAME}:${USERNAME} /var/vscode
+ADD ubuntu/entrypoint.sh /usr/bin
+
+RUN ${VSCODE} --install-extension ms-python.python
+RUN ${VSCODE} --install-extension njpwerner.autodocstring
+RUN ${VSCODE} --install-extension PKief.material-icon-theme
+RUN echo "#!/bin/bash" > /usr/bin/vscode.sh && \
+    echo "set -e" >> /usr/bin/vscode.sh && \
+    echo "set -o pipefail" >> /usr/bin/vscode.sh && \
+    echo "/usr/bin/${VSCODE}" >> /usr/bin/vscode.sh
+# ADD ubuntu/vscode.sh /usr/bin/vscode.sh
+RUN chmod +x /usr/bin/vscode.sh
+
+# Docker config
+# VOLUME ["/etc/ssh","/home"]
+EXPOSE 3389 22 9001
+# ENTRYPOINT ["/usr/bin/docker-entrypoint.sh"]
+# CMD ["supervisord"]
+
+ENTRYPOINT ["/usr/bin/entrypoint.sh"]
+CMD ["/bin/bash"]

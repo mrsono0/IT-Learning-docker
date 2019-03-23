@@ -1,0 +1,52 @@
+FROM debian:stretch
+
+ENV DEBIAN_FRONTEND noninteractive
+RUN sed -i "s/deb.debian.org/ftp.kr.debian.org/g" /etc/apt/sources.list
+RUN sed -i "s/security.debian.org/ftp.kr.debian.org/g" /etc/apt/sources.list
+RUN apt-get -y update
+RUN apt-get -yy upgrade
+RUN apt-get -yy install \
+    ca-certificates software-properties-common sudo apt-utils locales \
+    openssh-server supervisor vim nano wget curl gpg netbase net-tools \
+    libmagickcore-dev fonts-liberation
+RUN apt-get autoclean --yes && \
+    apt-get clean --yes && \
+    rm -rf /var/cache/apt /var/lib/apt/lists
+
+RUN cp -r /etc/ssh /ssh_orig && \
+    rm -rf /etc/ssh/*
+RUN ln -sf /usr/share/zoneinfo/Asia/Seoul /etc/localtime
+RUN locale-gen --purge
+RUN locale-gen ko_KR.UTF-8
+RUN dpkg-reconfigure locales
+RUN echo 'LANG="ko_KR.UTF-8"' >> /etc/environment && \
+    echo 'LANGUAGE="ko_KR;ko;en_GB;en"' >> /etc/environment && \
+    echo 'LC_ALL="ko_KR.UTF-8"' >> /etc/environment
+RUN echo "export QT_XKB_CONFIG_ROOT=/usr/share/X11/locale" >> /etc/profile && \
+    echo 'export LANG=ko_KR.UTF-8' >> /etc/profile && \
+    echo 'export LANGUAGE="ko_KR;ko;en_GB;en"' >> /etc/profile && \
+    echo 'export LC_ALL=ko_KR.UTF-8' >> /etc/profile
+RUN echo 'LANG="ko_KR.UTF-8"' >> /etc/default/locale && \
+    echo 'LANGUAGE="ko_KR;ko;en_GB;en"' >> /etc/default/locale && \
+    echo 'LC_ALL="ko_KR.UTF-8"' >> /etc/default/locale
+
+ARG NB_USER="ubuntu"
+ARG NB_UID="1000"
+ARG NB_GID="1000"
+RUN groupadd wheel -g 11 && \
+    groupadd --gid $NB_GID ubuntu && \
+    # echo "auth required pam_wheel.so use_uid" >> /etc/pam.d/su && \
+    useradd -m -s /bin/bash -N -u $NB_UID $NB_USER && \
+    usermod -a -G ubuntu $NB_USER && \
+    usermod -a -G wheel $NB_USER && \
+    echo 'root:root' | chpasswd && \
+    echo 'ubuntu:ubuntu' | chpasswd && \
+    echo "ubuntu    ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers && \
+    chmod g+w /etc/passwd
+
+ADD debian/oraclelinux-7-slim-rootfs.tar.xz /
+ADD debian/etc/supervisor/conf.d/sshd.conf /etc/supervisor/conf.d/
+ADD debian/entrypoint.sh /usr/local/bin
+EXPOSE 22
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["/bin/bash"]

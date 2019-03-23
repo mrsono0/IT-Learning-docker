@@ -1,0 +1,57 @@
+FROM mrsono0/base_project:alpine_base
+
+RUN echo "http://dl-3.alpinelinux.org/alpine/v3.8/main" > /etc/apk/repositories && \
+    echo "http://dl-3.alpinelinux.org/alpine/v3.8/community" >> /etc/apk/repositories && \
+    echo "http://dl-3.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories
+RUN apk update && \
+    apk upgrade
+
+# RUN apk --update add --no-cache --virtual .build-deps \
+RUN apk --update add --no-cache \
+    ca-certificates \
+    autoconf \
+    bison \
+    bzip2 \
+    bzip2-dev \
+    coreutils \
+    dpkg-dev dpkg \
+    expat-dev \
+    findutils \
+    freetds freetds-dev \
+    gcc \
+    g++ \
+    dpkg-dev dpkg \
+    gdbm-dev \
+    glib-dev \
+    libc-dev \
+    libffi-dev \
+    libressl \
+    libressl-dev \
+    libxml2-dev \
+    libxslt-dev \
+    linux-headers \
+    libnsl-dev \
+    libtirpc-dev \
+    linux-headers \
+    make \
+    ncurses-dev \
+    pax-utils \
+    readline-dev \
+    sqlite-libs sqlite-dev \
+    tcl-dev \
+    tk tk-dev \
+    xz xz-dev xz-libs \
+	imagemagick6 imagemagick6-dev \
+    zlib zlib-dev \
+    expat expat-dev \
+	yaml yaml-dev \
+    gfortran libgfortran \
+    build-base libstdc++ \
+    freetype jpeg libpng libexecinfo \
+    libgomp graphviz font-noto \
+    # openssl openssl-dev \
+    build-base linux-headers \
+    pcre pcre-dev \
+    cmake jpeg-dev libffi-dev openblas-dev \
+    freetype-dev libpng-dev libexecinfo-dev && \
+    rm -rf /tmp/* /var/cache/apk/*

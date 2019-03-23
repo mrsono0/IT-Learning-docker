@@ -1,0 +1,202 @@
+FROM mrsono0/base_project:base_dev_alpine_3_9
+
+########################################################################
+# Set up OS
+########################################################################
+USER root
+EXPOSE 80 443 8888
+WORKDIR /root
+
+ENV CPPFLAGS=-s \
+    SHELL=/bin/bash
+
+# CMD start_jupyter.sh ${notebook_dir}
+CMD /usr/local/bin/start_jupyter.sh --notebook-dir=/workspace --port=8888 --no-browser --ip=0.0.0.0 --NotebookApp.token=
+
+
+COPY alpine/util_jupyter/* /usr/local/bin/
+COPY alpine/config_jupyter/bashrc /root/.bashrc
+COPY alpine/config_jupyter/*.rsa.pub /etc/apk/keys/
+COPY alpine/start_jupyter.sh /usr/local/bin/
+COPY alpine/config_jupyter/jupyter /root/.jupyter/
+COPY alpine/config_jupyter/ipydeps /root/.config/ipydeps/
+RUN mkdir -p /workspace
+# COPY alpine/ipython_config.py.tmpl /tmp/ipython_config.py
+# RUN mkdir -p /root/.jupyter && mkdir -p /root/.ipython/profile_default && \
+#     cp /tmp/ipython_config.py /root/.ipython/profile_default/ipython_config.py && \
+#     chown -R root:root /root
+
+RUN echo "http://dl-3.alpinelinux.org/alpine/v3.9/main" > /etc/apk/repositories && \
+    echo "http://dl-3.alpinelinux.org/alpine/v3.9/community" >> /etc/apk/repositories && \
+    echo "http://dl-3.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories && \
+    echo "http://apk.nbgallery.s3-us-west-2.amazonaws.com/alpine38" >> /etc/apk/repositories
+
+RUN apk update && \
+    apk upgrade
+
+# HADOOP
+ENV HADOOP_VERSION 2.7.7
+ENV HADOOP_HOME /usr/hadoop-$HADOOP_VERSION
+ENV HADOOP_CONF_DIR=$HADOOP_HOME/etc/hadoop
+ENV PATH $PATH:$HADOOP_HOME/bin
+RUN curl -sL --retry 3 \
+    "http://archive.apache.org/dist/hadoop/common/hadoop-$HADOOP_VERSION/hadoop-$HADOOP_VERSION.tar.gz" \
+    | gunzip \
+    | tar -x -C /usr/ && \
+    rm -rf $HADOOP_HOME/share/doc
+
+# SPARK spark-2.2.0-bin-without-hadoop
+ENV SPARK_VERSION 2.2.0
+ENV SPARK_PACKAGE spark-$SPARK_VERSION-bin-without-hadoop
+ENV SPARK_HOME /usr/spark-$SPARK_VERSION
+ENV PYSPARK_PYTHON python3 
+ENV PYSPARK_DRIVER_PYTHON jupyter 
+ENV SPARK_DIST_CLASSPATH="$HADOOP_HOME/etc/hadoop/*:$HADOOP_HOME/share/hadoop/common/lib/*:$HADOOP_HOME/share/hadoop/common/*:$HADOOP_HOME/share/hadoop/hdfs/*:$HADOOP_HOME/share/hadoop/hdfs/lib/*:$HADOOP_HOME/share/hadoop/hdfs/*:$HADOOP_HOME/share/hadoop/yarn/lib/*:$HADOOP_HOME/share/hadoop/yarn/*:$HADOOP_HOME/share/hadoop/mapreduce/lib/*:$HADOOP_HOME/share/hadoop/mapreduce/*:$HADOOP_HOME/share/hadoop/tools/lib/*"
+ENV PATH $PATH:$SPARK_HOME/bin
+RUN curl -sL --retry 3 \
+    "http://d3kbcqa49mib13.cloudfront.net/$SPARK_PACKAGE.tgz" \
+    | gunzip \
+    | tar -x -C /usr/ && \
+    mv /usr/$SPARK_PACKAGE $SPARK_HOME && \
+    rm -rf $SPARK_HOME/examples $SPARK_HOME/ec2
+
+RUN conda update -n base -c defaults conda -y
+
+RUN \
+  min-apk binutils && \
+  min-apk \
+    ca-certificates \
+    file \
+    gcc \
+    g++ \
+    git \
+    libressl \
+    libsodium-dev \
+    make \
+    cmake \
+    openssh-client \
+    patch \
+    readline-dev \
+    krb5-dev \
+    tar \
+    gzip \
+    && \
+  echo "### Install specific version of zeromq from source" && \
+  min-package https://archive.org/download/zeromq_4.0.4/zeromq-4.0.4.tar.gz && \
+  ln -s /usr/local/lib/libzmq.so.3 /usr/local/lib/libzmq.so.4 && \
+  strip --strip-unneeded --strip-debug /usr/local/bin/curve_keygen && \
+  echo "### Alpine compatibility patch for various packages" && \
+  if [ ! -f /usr/include/xlocale.h ]; then echo '#include <locale.h>' > /usr/include/xlocale.h; fi && \
+  echo "### Cleanup unneeded files" && \
+  clean-terminfo && \
+  rm /usr/local/share/man/*/zmq* && \
+  rm -rf /usr/include/c++/*/java && \
+  rm -rf /usr/include/c++/*/javax && \
+  rm -rf /usr/include/c++/*/gnu/awt && \
+  rm -rf /usr/include/c++/*/gnu/classpath && \
+  rm -rf /usr/include/c++/*/gnu/gcj && \
+  rm -rf /usr/include/c++/*/gnu/java && \
+  rm -rf /usr/include/c++/*/gnu/javax && \
+  rm /usr/libexec/gcc/x86_64-alpine-linux-musl/*/cc1obj && \
+  rm /usr/bin/gcov* && \
+  rm /usr/bin/gprof && \
+  rm -f /usr/bin/*gcj
+
+########################################################################
+# Install Python3, Jupyter, ipydeps
+########################################################################
+
+# COPY config/jupyter /root/.jupyter/
+# COPY config/ipydeps /root/.config/ipydeps/
+
+# TODO: decorator conflicts with the c++ kernel apk, which we are
+# having trouble re-building.  Just let pip install it for now.
+#    py3-decorator \
+RUN \
+  min-apk \
+    libffi-dev \
+    py3-pygments \
+    py3-cffi \
+    py3-cryptography \
+    py3-jinja2 \
+    py3-openssl \
+    py3-pexpect \
+    py3-tornado \
+    # python3 \
+    python3-dev \
+    cython \
+    && \
+    pip3 install --no-cache-dir --upgrade setuptools pip
+#   mkdir -p `python -m site --user-site` && \
+#   min-pip3 notebook==5.2.2 jupyter ipywidgets==6.0.1 jupyter_dashboards pypki2 ipydeps ordo && \
+RUN min-pip3 \
+    numpy \
+    pandas \
+    pandas-datareader \
+    pandas-td \
+    notebook==5.7.4 \
+    jupyter \
+    jupyterlab \
+    ipywidgets \
+    jupyter_dashboards \
+    pypki2 \
+    ipydeps \
+    ordo \
+    beakerx \
+    bash_kernel
+RUN conda install -c conda-forge \
+    tornado \
+    cling \
+    xeus-cling \
+    r-irkernel
+RUN python3 -m bash_kernel.install
+# RUN curl -fsSLO "https://github.com/SpencerPark/IJava/releases/download/v1.2.0/ijava-1.2.0.zip" && \
+#     unzip ijava-1.2.0.zip && \
+#     python3 install.py --sys-prefix && \
+#     rm -rf java ijava-1.2.0.zip install.py
+RUN npm config set user 0 && \
+    npm config set unsafe-perm true && \
+    npm install -g ijavascript && \
+    ijsinstall
+RUN npm install -g itypescript && \
+    its --ts-install=local
+RUN beakerx install
+RUN pip3 install http://github.com/nbgallery/nbgallery-extensions/tarball/master#egg=jupyter_nbgallery && \
+    echo "### Install jupyter extensions" && \
+    jupyter serverextension enable --py jupyterlab && \
+    jupyter nbextension enable --py --sys-prefix widgetsnbextension && \
+    jupyter serverextension enable --py jupyter_nbgallery && \
+    jupyter nbextension install --py jupyter_nbgallery && \
+    jupyter nbextension enable jupyter_nbgallery --py && \
+    jupyter dashboards quick-setup --sys-prefix && \
+    jupyter nbextension install --py ordo && \
+    jupyter nbextension enable ordo --py
+
+RUN rm -rf /opt/conda/share/jupyter/kernels/clojure && \
+    rm -rf /opt/conda/share/jupyter/kernels/groovy && \
+    rm -rf /opt/conda/share/jupyter/kernels/kotlin && \
+    rm -rf /opt/conda/share/jupyter/kernels/scala
+
+########################################################################
+# Add dynamic kernels
+########################################################################
+ENV GOPATH=/go
+ENV PATH=$PATH:$JAVA_HOME/bin:$SPARK_HOME/bin:$GOPATH/bin:/opt/conda/share/jupyter/kernels/installers \
+    LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$JAVA_HOME/jre/lib/amd64/server
+
+ADD alpine/kernels_jupyter/installers /opt/conda/share/jupyter/kernels/installers
+# ADD alpine/kernels_jupyter/spark_pyspark /opt/conda/share/jupyter/kernels/spark_pyspark
+# ADD alpine/kernels_jupyter/spark_scala /opt/conda/share/jupyter/kernels/spark_scala
+# ADD alpine/kernels_jupyter/spark_sparkr /opt/conda/share/jupyter/kernels/spark_sparkr
+# ADD alpine/kernels_jupyter/spark_sql /opt/conda/share/jupyter/kernels/spark_sql
+# ADD alpine/kernels_jupyter/pig /opt/conda/share/jupyter/kernels/pig
+
+RUN ln -fs $SPARK_HOME /usr/spark
+RUN echo "export HADOOP_HOME=${HADOOP_HOME}" >> /etc/profile
+RUN echo "export HADOOP_CONF_DIR=${HADOOP_CONF_DIR}" >> /etc/profile
+RUN echo "export SPARK_HOME=${SPARK_HOME}" >> /etc/profile
+RUN echo "export PYSPARK_PYTHON=${PYSPARK_PYTHON}" >> /etc/profile
+RUN echo "export PYSPARK_DRIVER_PYTHON=${PYSPARK_DRIVER_PYTHON}" >> /etc/profile
+RUN echo 'export PYSPARK_DRIVER_PYTHON_OPTS="lab --notebook-dir=/workspace --port=8888 --no-browser --allow-root --ip=0.0.0.0 --NotebookApp.token="'  >> /etc/profile
+RUN echo "export SPARK_DIST_CLASSPATH=${SPARK_DIST_CLASSPATH}" >> /etc/profile
+RUN echo "export PATH=$PATH" >> /etc/profile

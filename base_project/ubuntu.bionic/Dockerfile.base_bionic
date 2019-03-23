@@ -1,0 +1,59 @@
+FROM ubuntu:bionic
+
+ENV DEBIAN_FRONTEND noninteractive
+RUN sed -i "s/archive.ubuntu.com/mirror.kakao.com/g" /etc/apt/sources.list
+# RUN sed -i "s/archive.canonical.com/mirror.kakao.com/g" /etc/apt/sources.list
+RUN sed -i "s/security.ubuntu.com/mirror.kakao.com/g" /etc/apt/sources.list
+RUN sed -i "s/# deb-src/deb-src/g" /etc/apt/sources.list
+RUN apt-get -y update
+RUN apt-get -yy upgrade
+RUN apt-get -yy install \
+    ca-certificates software-properties-common sudo apt-utils locales \
+    openssh-server supervisor vim nano wget curl git \
+    gpg netbase net-tools uuid-runtime \
+    libmagickcore-dev fonts-liberation fcitx fcitx-hangul \
+    fortune
+RUN apt-get autoclean --yes && \
+    apt-get clean --yes && \
+    rm -rf /var/cache/apt /var/lib/apt/lists
+
+RUN cp -r /etc/ssh /ssh_orig && \
+    rm -rf /etc/ssh/*
+RUN ln -sf /usr/share/zoneinfo/Asia/Seoul /etc/localtime
+RUN locale-gen --purge
+RUN locale-gen ko_KR.UTF-8
+RUN dpkg-reconfigure locales
+RUN echo 'LANG="ko_KR.UTF-8"' >> /etc/environment && \
+    # echo 'LANG="ko_KR.EUC-KR"' >> /etc/environment && \
+    echo 'LANGUAGE="ko_KR;ko;en_GB;en"' >> /etc/environment && \
+    echo 'LC_ALL="ko_KR.UTF-8"' >> /etc/environment
+RUN echo 'export LANG="ko_KR.UTF-8"' >> /etc/profile && \
+    # echo 'export LANG="ko_KR.EUC-KR"' >> /etc/profile && \
+    echo 'export LANGUAGE="ko_KR;ko;en_GB;en"' >> /etc/profile && \
+    echo 'export LC_ALL="ko_KR.UTF-8"' >> /etc/profile && \
+    echo "export QT_XKB_CONFIG_ROOT=/usr/share/X11/locale" >> /etc/profile
+RUN echo 'LANG="ko_KR.UTF-8"' >> /etc/default/locale && \
+    # echo 'LANG="ko_KR.EUC-KR"' >> /etc/default/locale && \
+    echo 'LANGUAGE="ko_KR;ko;en_GB;en"' >> /etc/default/locale && \
+    echo 'LC_ALL="ko_KR.UTF-8"' >> /etc/default/locale
+
+ARG NB_USER="ubuntu"
+ARG NB_UID="1000"
+ARG NB_GID="1000"
+RUN groupadd wheel -g 11 && \
+    groupadd --gid $NB_GID ubuntu && \
+    useradd -m -s /bin/bash -N -u $NB_UID $NB_USER && \
+    echo 'root:root' | chpasswd && \
+    echo 'ubuntu:ubuntu' | chpasswd && \
+    echo "ubuntu    ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers && \
+    chmod g+w /etc/passwd
+
+RUN apt-get purge && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+ADD ubuntu/etc/supervisor/conf.d/sshd.conf /etc/supervisor/conf.d/
+ADD ubuntu/entrypoint.sh /usr/local/bin
+EXPOSE 22
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["/bin/bash"]

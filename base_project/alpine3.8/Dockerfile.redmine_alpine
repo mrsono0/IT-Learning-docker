@@ -1,0 +1,63 @@
+FROM mrsono0/base_project:ruby_alpine
+
+ENV	REDMINE_BRANCH=4.0-stable \
+	REDMINE_HOME=/home/redmine \
+	RAILS_ENV=production
+WORKDIR	${REDMINE_HOME}
+COPY	alpine/entrypoint_redmine.sh /root/
+
+RUN echo "http://dl-3.alpinelinux.org/alpine/v3.8/main" > /etc/apk/repositories && \
+    echo "http://dl-3.alpinelinux.org/alpine/v3.8/community" >> /etc/apk/repositories && \
+    echo "http://dl-3.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories
+RUN apk update && \
+    apk upgrade
+
+RUN	set -ex \
+&&	chmod +x /root/entrypoint_redmine.sh \
+	\
+# &&	apk upgrade --update-cache \
+# 	\
+&&	apk --update add  \
+	tini \
+	ruby \
+	ruby-bundler \
+	ruby-json \
+	ruby-bigdecimal \
+	mariadb-connector-c \
+	postgresql-libs \
+&&	ln -s /usr/bin/convert-6 /usr/bin/convert \
+	\
+&&	apk add --virtual .build-deps \
+	ruby-dev \
+	mariadb-connector-c-dev \
+	postgresql-dev \
+	git \
+	\
+&&	echo "gem: --no-document" > /etc/gemrc \
+&&	git clone -b ${REDMINE_BRANCH} https://github.com/redmine/redmine.git . \
+&&	echo -e "\ngroup :${RAILS_ENV} do\n$(grep "\sgem\s\+\(\"puma\"\|\'puma\'\)" Gemfile || echo "  gem 'puma'")\nend\n" >> Gemfile \
+&&      for adapter in mysql2 postgresql sqlserver sqlite3; do \
+		echo -e "${RAILS_ENV}:\n  adapter: ${adapter}\n" > config/database.yml; \
+                bundle install --without development test; \
+                mv Gemfile.lock Gemfile.lock.${adapter}; \
+        done \
+	\
+&&	for dir in `find $(gem env gemdir) -type f -name Makefile -exec dirname {} \;`; do \
+		cd $dir; \
+		make clean; \
+	done \
+&&	cd ${REDMINE_HOME} \
+&&	apk del --purge .build-deps \
+&&	rm -fr /var/cache/apk/* \
+	/root/.bundle \
+	/root/.gem \
+	$(gem env gemdir)/cache \
+	.git* \
+	.*ignore \
+	$(find . -type f -name delete.me) \
+	config/database.yml
+
+VOLUME	["${REDMINE_HOME}/files", "${REDMINE_HOME}/log"]
+EXPOSE	3000
+ENTRYPOINT ["/root/entrypoint_redmine.sh"]
+CMD	["rails", "server", "-b", "0.0.0.0"]
