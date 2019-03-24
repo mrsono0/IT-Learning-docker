@@ -75,9 +75,9 @@ ENV SPARK_OPTS "--driver-java-options=-Xms1024M --driver-java-options=-Xmx4096M 
 RUN echo "export MESOS_NATIVE_LIBRARY=${MESOS_NATIVE_LIBRARY}" >> /etc/profile
 RUN echo "export SPARK_OPTS='${SPARK_OPTS}'" >> /etc/profile
 
-RUN mkdir -p /home/jovyan/teradatakernel
-ADD ubuntu/teradatasql.tgz /home/jovyan/teradatakernel
-RUN mv -f /home/jovyan/teradatakernel/teradatasql/* /home/jovyan/teradatakernel
+RUN mkdir -p /home/jovyan
+ADD ubuntu/teradatasql.tgz /home/jovyan
+RUN cp -rf /home/jovyan/teradatasql/* /home/jovyan/
 RUN apt-get -y update && apt-get install -y libsodium-dev libzmq3-dev
 
 RUN conda update conda -y
@@ -152,9 +152,9 @@ RUN pip3 install http://github.com/nbgallery/nbgallery-extensions/tarball/master
 #     jupyter-kernelspec install sparkmagic/kernels/pysparkkernel && \
 #     jupyter-kernelspec install sparkmagic/kernels/pyspark3kernel && \
 #     jupyter-kernelspec install sparkmagic/kernels/sparkrkernel
-ENV PATH=/home/jovyan/teradatakernel:$PATH
-RUN jupyter kernelspec install /home/jovyan/teradatakernel/teradatasql && \
-    cp /home/jovyan/teradatakernel/teradata_* /opt/conda/share/jupyter/lab/extensions/ && \
+ENV PATH=/home/jovyan:$PATH
+RUN jupyter kernelspec install /home/jovyan/teradatasql && \
+    cp /home/jovyan/teradata_* /opt/conda/share/jupyter/lab/extensions/ && \
     chmod -R 777 /home/jovyan
 
 # mkdir -r /opt/teradatasql ** \

@@ -39,7 +39,10 @@
 
 - 우분투 18.04 기반 ssh + Jupyter teradatasql 한글 환경 패치  
 ```
+    docker build -f Dockerfile.teradatasql_base_bionic --tag mrsono0/base_project:teradatasql_base_bionic .
+    docker build -f Dockerfile.teradatasql_dev_bionic --tag mrsono0/base_project:teradatasql_dev_bionic .
     docker build -f Dockerfile.teradatasql_bionic --tag mrsono0/base_project:teradatasql_bionic .
+    docker run --rm -it -p 8081:8081 mrsono0/base_project:teradatasql_dev_bionic
     docker run --rm -it -p 8888:8888 mrsono0/base_project:teradatasql_bionic
     docker run --rm -it -p 8889:8888 -e JUPYTER_ENABLE_LAB=no mrsono0/base_project:teradatasql_bionic
     docker run --rm -it -p 8888:8888 -e JUPYTER_ENABLE_LAB=pyspark mrsono0/base_project:teradatasql_bionic
