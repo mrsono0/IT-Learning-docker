@@ -1,4 +1,4 @@
-FROM mrsono0/base_project:teradatasql_dev_bionic
+FROM mrsono0/base_project:teradatasql
 ENV CPPFLAGS=-s \
     SHELL=/bin/bash
 ENV DEBIAN_FRONTEND noninteractive
@@ -100,17 +100,19 @@ RUN conda update conda -y && \
     # conda build purge-all && \
     conda clean -tipsy
     # rm -rf /home/$NB_USER/.cache/yarn
+
 RUN conda install --quiet -y -c conda-forge \
     pyarrow && \
     conda clean -tipsy && \
-    conda update --quiet --yes \
-    'notebook=5.7.4' \
-    'jupyterhub=0.9.4' \
-    'jupyterlab=0.35.4' && \
-    conda clean -tipsy && \
+    # conda install --yes \
+    conda update -y notebook && \
+    # 'notebook=5.7.4' \
+    # 'jupyterhub=0.9.4' \
+    # 'jupyterlab=0.35.4' && \
+    # conda clean -tipsy && \
     jupyter labextension install @jupyterlab/hub-extension@^0.12.0 && \
     npm cache clean --force && \
-    jupyter notebook --generate-config && \
+    # jupyter notebook --generate-config && \
     rm -rf $CONDA_DIR/share/jupyter/lab/staging
     # rm -rf /home/$NB_USER/.cache/yarn
 
@@ -131,10 +133,10 @@ RUN conda install -c conda-forge \
     sqlalchemy \
     cx_Oracle \
     # zeromq \
-    ipython-sql && \
-    beakerx install && \
-    beakerx_databrowser install && \
-    python3 -m bash_kernel.install && \
+    ipython-sql
+RUN beakerx install && \
+    beakerx_databrowser install
+RUN python3 -m bash_kernel.install && \
     curl -fsSLO "https://github.com/SpencerPark/IJava/releases/download/v1.2.0/ijava-1.2.0.zip" && \
     unzip ijava-1.2.0.zip && \
     python3 install.py --sys-prefix && \
