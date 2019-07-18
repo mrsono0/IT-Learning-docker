@@ -84,3 +84,10 @@
     set-variable -name DISPLAY -value 172.17.0.1:0.0
     docker push mrsono0/base_project:vscode_bionic
 ```
+
+- 우분투 18.04 기반 ssh + zeppelin 한글 환경 패치  
+```
+    docker build -f Dockerfile.zeppelin_bionic --tag mrsono0/base_project:zeppelin_bionic .
+    docker run --rm -it -p 8080:8080 mrsono0/base_project:zeppelin_bionic
+    docker push mrsono0/base_project:zeppelin_bionic
+```
