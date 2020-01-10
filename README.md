@@ -47,7 +47,7 @@ docker run --rm --name eda -itd -u vscode -p 8888-8889:8888-8889 -p 6006-6015:60
 docker push mrsono0/devremotecontainers:eda
 ```
 
-- ### ai and Docker-for-AI-Researcher
+- ### ML, DL and Docker-for-AI-Researcher
 
 ```
 docker build -f ai.Dockerfile --tag mrsono0/devremotecontainers:ai .
